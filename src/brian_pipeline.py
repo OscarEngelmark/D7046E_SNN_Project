@@ -11,12 +11,14 @@ prefs.codegen.target = "numpy" # can use cython
 # Biophysical parameters
 v_rest = -70 * mV
 v_reset = -80 * mV
-v_thres = -55 * mV
+v_thres = -60 * mV
 tau_m = 20 * ms
 R = 100 * Mohm
 tau_syn = 39 * ms
-ex_weight = 350 * pA
-in_weight = -250 * pA
+ex_weight = 500 * pA
+in_weight = -150 * pA
+lateral_inhib_weight = 0 * pA
+inhib_delay = 5 * ms
 
 # Number of input receptors
 num_inputs = 5
@@ -44,34 +46,34 @@ test_times = np.array(test_times)
 
 # Neuron model (LIF with exponential current synapses)
 eqs_neurons = '''
-dv/dt = ((v_rest - v) + R * I_syn) / tau_m : volt
-dI_syn/dt = -I_syn / tau_syn : amp
+    dv/dt = ((v_rest - v) + R * I_syn) / tau_m : volt
+    dI_syn/dt = -I_syn / tau_syn : amp
 '''
 
 # STDP parameters — pair-based with soft bounds
 tau_pls   = 20 * ms
 tau_mns   = 20 * ms
-gamma     = 1.0 # TUNE ME!
+gamma     = 0.01 # TUNE ME!
 w_max     = 2.0
 w_min     = 0.0
 
 stdp_eqs = '''
-w     : 1
-pre_trace : 1
-post_trace : 1
+    w : 1
+    pre_trace : 1
+    post_trace : 1
 '''
 
 on_pre_stdp = '''
-I_syn_post += w * ex_weight
-pre_trace += 1
-w += gamma * (w_max - w) * pre_trace
-w = clip(w, w_min, w_max)
+    I_syn_post += w * ex_weight
+    pre_trace += 1
+    w += gamma * (w_max - w) * pre_trace
+    w = clip(w, w_min, w_max)
 '''
 
 on_post_stdp = '''
-post_trace += 1
-w += gamma * (w_min - w) * post_trace
-w = clip(w, w_min, w_max)
+    post_trace += 1
+    w += gamma * (w - w_max) * post_trace
+    w = clip(w, w_min, w_max)
 '''
 
 # Function to run simulation
@@ -81,98 +83,248 @@ def run_simulation(spike_ids, spike_times, stdp_enabled=True, label=''):
     # Input group
     input_group = b.SpikeGeneratorGroup(num_inputs, spike_ids, spike_times * second)
 
-    # Inhibitory group (4 neurons)
-    inhib_group = b.NeuronGroup(4, eqs_neurons, threshold='v > v_thres', reset='v = v_reset', method='exact')
+    # Left pathway
+    left_inhib_group = b.NeuronGroup(
+        N=4,
+        model=eqs_neurons,
+        threshold='v > v_thres',
+        reset='v = v_reset',
+        method='exact',
+        name='left_inhib'
+    )
 
-    # Relay group (4 neurons)
-    relay_group = b.NeuronGroup(4, eqs_neurons, threshold='v > v_thres', reset='v = v_reset', method='exact')
+    left_relay_group = b.NeuronGroup(
+        N=4,
+        model=eqs_neurons,
+        threshold='v > v_thres',
+        reset='v = v_reset',
+        method='exact',
+        name='left_relay'
+    )
 
-    # Output group (1 neuron)
-    output_group = b.NeuronGroup(1, eqs_neurons, threshold='v > v_thres', reset='v = v_reset', method='exact')
+    left_output_group = b.NeuronGroup(
+        N=1,
+        model=eqs_neurons,
+        threshold='v > v_thres',
+        reset='v = v_reset',
+        method='exact',
+        name='left_output'
+    )
 
-    # Synapses: input to inhib (excitatory, fixed)
-    S_input_inhib = b.Synapses(input_group, inhib_group, 'w : amp', on_pre='I_syn_post += w')
-    S_input_inhib.connect(i=[0,1,2,3], j=[0,1,2,3])  # Inputs 0-3 to inhib 0-3
-    S_input_inhib.w = ex_weight
+    # Right pathway
+    right_inhib_group = b.NeuronGroup(
+        N=4,
+        model=eqs_neurons,
+        threshold='v > v_thres',
+        reset='v = v_reset',
+        method='exact',
+        name='right_inhib'
+    )
 
-    # Synapses: inhib to relay (inhibitory, fixed)
-    S_inhib_relay = b.Synapses(inhib_group, relay_group, 'w : amp', on_pre='I_syn_post += w')
-    S_inhib_relay.connect(j='i')  # Inhib 0-3 to relay 0-3
-    S_inhib_relay.w = in_weight
+    right_relay_group = b.NeuronGroup(
+        N=4,
+        model=eqs_neurons,
+        threshold='v > v_thres',
+        reset='v = v_reset',
+        method='exact',
+        name='right_relay'
+    )
 
-    # Synapses: input to relay (excitatory, fixed, shifted)
-    S_input_relay = b.Synapses(input_group, relay_group, 'w : amp', on_pre='I_syn_post += w')
-    S_input_relay.connect(i=[1,2,3,4], j=[0,1,2,3])  # Inputs 1-4 to relay 0-3
-    S_input_relay.w = ex_weight
+    right_output_group = b.NeuronGroup(
+        N=1,
+        model=eqs_neurons,
+        threshold='v > v_thres',
+        reset='v = v_reset',
+        method='exact',
+        name='right_output'
+    )
 
     # Synapses: relay to output
-    if stdp_enabled: # train
+    if stdp_enabled:  # train
         syn_model = stdp_eqs
         syn_on_pre = on_pre_stdp
         syn_on_post = on_post_stdp
-    else: # validation/test
+    else:  # validation/test
         syn_model = 'w : 1'
         syn_on_pre = 'I_syn_post += w * ex_weight'
         syn_on_post = None
 
-    S_relay_output = b.Synapses(relay_group, output_group,
-                                model=syn_model,
-                                on_pre=syn_on_pre,
-                                on_post=syn_on_post if syn_on_post is not None else None)
-    S_relay_output.connect()
+    # ────────────────────────────────────────────────
+    # Leftward pathway synapses (prefers decreasing IDs: 4→3→2→1→0)
+    # ────────────────────────────────────────────────
 
+    # Input → left inhib (excitatory, fixed, direct)
+    S_input_left_inhib = b.Synapses(input_group, left_inhib_group,
+                                    model='w : amp',
+                                    on_pre='I_syn_post += w')
+    S_input_left_inhib.connect(i=[0, 1, 2, 3], j=[0, 1, 2, 3])  # inputs 0-3 → left_inhib 0-3
+    S_input_left_inhib.w = ex_weight
+
+    # Left inhib → left relay (inhibitory, fixed, matched)
+    S_left_inhib_relay = b.Synapses(left_inhib_group, left_relay_group,
+                                    model='w : amp',
+                                    on_pre='I_syn_post += w')
+    S_left_inhib_relay.connect()  # or 'j == i' — same size → 1:1
+    S_left_inhib_relay.w = in_weight
+    S_left_inhib_relay.delay = inhib_delay
+
+    # Input → left relay (excitatory, fixed, shifted for leftward preference)
+    S_input_left_relay = b.Synapses(input_group, left_relay_group,
+                                    model='w : amp',
+                                    on_pre='I_syn_post += w')
+    S_input_left_relay.connect(i=[1, 2, 3, 4], j=[0, 1, 2, 3])  # input 1→relay0, 2→1, 3→2, 4→3
+    S_input_left_relay.w = ex_weight
+
+    # Left relay → left output (plastic with STDP)
+    S_left_relay_output = b.Synapses(left_relay_group, left_output_group,
+                                     model=syn_model,
+                                     on_pre=syn_on_pre,
+                                     on_post=syn_on_post)
+    S_left_relay_output.connect()  # all 4 left relays → single left output
+
+    # ────────────────────────────────────────────────
+    # Rightward pathway synapses (prefers increasing IDs: 0→1→2→3→4)
+    # ────────────────────────────────────────────────
+
+    # Input → right inhib (excitatory, fixed, direct)
+    S_input_right_inhib = b.Synapses(input_group, right_inhib_group,
+                                     model='w : amp',
+                                     on_pre='I_syn_post += w')
+    S_input_right_inhib.connect(i=[1, 2, 3, 4], j=[0, 1, 2, 3])  # inputs 1-4 → right_inhib 0-3
+    S_input_right_inhib.w = ex_weight
+
+    # Right inhib → right relay (inhibitory, fixed, matched)
+    S_right_inhib_relay = b.Synapses(right_inhib_group, right_relay_group,
+                                     model='w : amp',
+                                     on_pre='I_syn_post += w')
+    S_right_inhib_relay.connect()  # 1:1
+    S_right_inhib_relay.w = in_weight
+    S_right_inhib_relay.delay = inhib_delay
+
+    # Input → right relay (excitatory, fixed, reversed shift for rightward)
+    S_input_right_relay = b.Synapses(input_group, right_relay_group,
+                                     model='w : amp',
+                                     on_pre='I_syn_post += w')
+    S_input_right_relay.connect(i=[0, 1, 2, 3], j=[0, 1, 2, 3])  # input 0→relay0, 1→1, 2→2, 3→3
+    S_input_right_relay.w = ex_weight
+
+    # Right relay → right output (plastic with STDP)
+    S_right_relay_output = b.Synapses(right_relay_group, right_output_group,
+                                      model=syn_model,
+                                      on_pre=syn_on_pre,
+                                      on_post=syn_on_post)
+    S_right_relay_output.connect()  # all 4 right relays → single right output
+
+    # ────────────────────────────────────────────────
+    # Set initial weights for plastic synapses
+    # ────────────────────────────────────────────────
     if stdp_enabled:
-        S_relay_output.w = 'rand() * 0.5'  # random init
+        # Random initialization for both pathways during training
+        S_left_relay_output.w = 'rand() * 0.5'
+        S_right_relay_output.w = 'rand() * 0.5'
     else:
-        loaded_weights = np.load("trained_relay_weights.npy")
-        S_relay_output.w[:] = loaded_weights
+        # Load trained weights (you will need two files now)
+        left_weights = np.load("left_weights.npy")
+        right_weights = np.load("right_weights.npy")
+        S_left_relay_output.w[:] = left_weights
+        S_right_relay_output.w[:] = right_weights
 
-    # Monitors
-    spike_mon_input = b.SpikeMonitor(input_group)
-    spike_mon_inhib = b.SpikeMonitor(inhib_group)
-    spike_mon_relay = b.SpikeMonitor(relay_group)
-    spike_mon_output = b.SpikeMonitor(output_group)
-    state_mon_output = b.StateMonitor(output_group, 'v', record=True)
+    # ────────────────────────────────────────────────
+    # Lateral (mutual) inhibition between the two outputs
+    # ────────────────────────────────────────────────
+    S_right_to_left = b.Synapses(right_output_group, left_output_group,
+                                 model='w : amp',
+                                 on_pre='I_syn_post += w')
+    S_right_to_left.connect()  # single connection
+    S_right_to_left.w = lateral_inhib_weight
+
+    S_left_to_right = b.Synapses(left_output_group, right_output_group,
+                                 model='w : amp',
+                                 on_pre='I_syn_post += w')
+    S_left_to_right.connect()
+    S_left_to_right.w = lateral_inhib_weight
+
+    # ────────────────────────────────────────────────
+    # Monitors — only what we need for plotting
+    # ────────────────────────────────────────────────
+    spike_mon_input = b.SpikeMonitor(input_group, name='input_spikes')
+    spike_mon_left = b.SpikeMonitor(left_output_group, name='left_output_spikes')
+    spike_mon_right = b.SpikeMonitor(right_output_group, name='right_output_spikes')
+    state_mon_left = b.StateMonitor(left_output_group, 'v', record=True, name='left_v')
+    state_mon_right = b.StateMonitor(right_output_group, 'v', record=True, name='right_v')
 
     # Run
     sim_duration = max(spike_times) * second + 10 * ms
     b.run(sim_duration)
 
-    # Plotting (similar to attached code)
-    fig, axs = plt.subplots(2, 1, figsize=(12, 10), sharex=True, gridspec_kw={'height_ratios': [2, 0.8]})
+    print(f"Left relay weights mean/std: {np.mean(S_left_relay_output.w):.3f} / {np.std(S_left_relay_output.w):.3f}")
+    print(f"Right relay weights mean/std: {np.mean(S_right_relay_output.w):.3f} / {np.std(S_right_relay_output.w):.3f}")
 
-    # Raster plot (all spikes: inputs negative, then inhib, relay, output)
-    all_spike_times = np.concatenate([spike_mon_input.t/second, spike_mon_inhib.t/second,
-                                      spike_mon_relay.t/second, spike_mon_output.t/second])
-    all_spike_ids = np.concatenate([spike_mon_input.i - num_inputs,  # Negative for inputs
-                                    spike_mon_inhib.i,
-                                    spike_mon_relay.i + 4,  # Offset
-                                    spike_mon_output.i + 8])  # Output at top
-    axs[0].scatter(all_spike_times, all_spike_ids, marker='|', s=20, c='k', lw=1.8)
-    axs[0].set_ylabel("Neuron ID (inputs negative, inhib 0-3, relay 4-7, output 8)")
+    # ────────────────────────────────────────────────
+    # Plotting
+    # ────────────────────────────────────────────────
+    fig, axs = plt.subplots(2, 1, figsize=(14, 9), sharex=True,
+                            gridspec_kw={'height_ratios': [2, 1.2]})
+
+    # 1. Raster plot: inputs (negative) + left/right outputs
+    t_ms_all = spike_mon_input.t / ms  # consistent ms
+    input_spike_ids = spike_mon_input.i - num_inputs  # -5 to -1
+
+    left_spike_ms = spike_mon_left.t / ms
+    left_spike_ids = np.full_like(left_spike_ms, 0)  # fixed ID 0 for left
+
+    right_spike_ms = spike_mon_right.t / ms
+    right_spike_ids = np.full_like(right_spike_ms, 1)  # fixed ID 1 for right
+
+    # Combine
+    all_times_ms = np.concatenate([t_ms_all, left_spike_ms, right_spike_ms])
+    all_ids = np.concatenate([input_spike_ids, left_spike_ids, right_spike_ids])
+
+    axs[0].scatter(all_times_ms, all_ids, marker='|', s=40, c='k', lw=1.8)
+    axs[0].set_ylabel('Neuron ID\n(inputs negative, left output = 0, right = 1)')
     axs[0].yaxis.set_major_locator(MultipleLocator(1))
-    axs[0].grid(True, alpha=0.5)
-    axs[0].set_title(f'{label} Simulation')
+    axs[0].grid(True, alpha=0.4, linestyle='--')
+    axs[0].set_title(f'{label} — Input and Output Spikes')
 
-    # Output voltage
-    axs[1].plot(state_mon_output.t/second, state_mon_output.v[0]/mV, label="Output", c='darkblue')
-    axs[1].axhline(y=v_thres/mV, color='r', ls='--', lw=0.9, label="threshold")
-    axs[1].set_ylabel("u_output [mV]")
-    axs[1].set_xlabel("Time [s]")
-    axs[1].legend(loc='upper right')
+    # Annotate
+    axs[0].text(0.02, 0.98, 'Leftward detector (0)\nRightward detector (1)',
+                transform=axs[0].transAxes, va='top', ha='left',
+                bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))
+
+    # 2. Output voltages (both)
+    t_ms = state_mon_left.t / ms
+    axs[1].plot(t_ms, state_mon_left.v[0] / mV, label='Left output (leftward pref.)', c='darkorange', lw=1.4)
+    axs[1].plot(t_ms, state_mon_right.v[0] / mV, label='Right output (rightward pref.)', c='teal', lw=1.4)
+
+    # Threshold
+    axs[1].axhline(y=v_thres / mV, color='r', ls='--', lw=1.0, label='threshold')
+
+    # Debug: vlines at output spike times
+    for spike_t in left_spike_ms:
+        axs[1].axvline(x=spike_t, color='darkorange', ls=':', lw=0.8)
+    for spike_t in right_spike_ms:
+        axs[1].axvline(x=spike_t, color='teal', ls=':', lw=0.8)
+
+    axs[1].set_ylabel('Membrane potential [mV]')
+    axs[1].set_xlabel('Time [ms]')
+    axs[1].legend(loc='upper right', fontsize=10)
+    axs[1].grid(True, alpha=0.3)
 
     plt.tight_layout()
     plt.show()
 
     # Stats
-    print(f'{label} - Output spikes: {len(spike_mon_output.i)}')
+    print(f'{label} Stats:')
+    print(f'  Left output spikes:  {len(spike_mon_left.i)}')
+    print(f'  Right output spikes: {len(spike_mon_right.i)}')
 
     # Return learned weights (relay to output)
-    return np.array(S_relay_output.w[:])
+    return np.array(S_left_relay_output.w[:]), np.array(S_right_relay_output.w[:])
 
 # Run training
-train_weights = run_simulation(train_ids, train_times, stdp_enabled=True, label='Training')
-np.save("trained_relay_weights.npy", train_weights)
+left_weights, right_weights = run_simulation(train_ids, train_times, stdp_enabled=True, label='Training')
+np.save("left_weights.npy", left_weights)
+np.save("right_weights.npy", right_weights)
 
 # Run validation
 run_simulation(val_ids, val_times, stdp_enabled=False, label='Validation')
