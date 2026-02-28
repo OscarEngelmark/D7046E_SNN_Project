@@ -106,11 +106,11 @@ def run_simulation(spike_ids, spike_times, stdp_enabled=True, label=''):
     S_input_relay.w = ex_weight
 
     # Synapses: relay to output
-    if stdp_enabled:
+    if stdp_enabled: # train
         syn_model = stdp_eqs
         syn_on_pre = on_pre_stdp
         syn_on_post = on_post_stdp
-    else:
+    else: # validation/test
         syn_model = 'w : 1'
         syn_on_pre = 'I_syn_post += w * ex_weight'
         syn_on_post = None
