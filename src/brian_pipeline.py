@@ -14,22 +14,22 @@ v_reset = -80 * mV
 v_thres = -60 * mV
 tau_m = 20 * ms
 R = 100 * Mohm
-tau_syn = 39 * ms
-ex_weight = 500 * pA
+tau_syn = 30 * ms
+ex_weight = 600 * pA
 in_weight = -150 * pA
-lateral_inhib_weight = 0 * pA
-inhib_delay = 5 * ms
+lateral_inhib_weight = -0 * pA
+inhib_delay = 50 * ms # for inhibitory groups (not lateral inhibition!)
 
 # Number of input receptors
 num_inputs = 5
 
 # Simulation durations (in seconds)
-train_time = 100.0
-val_time = 3.0
-test_time = 3.0
+train_time = 10.0
+val_time = 1.5
+test_time = 1.5
 
 # Speed for motion (neurons/s)
-speed = 18.0
+speed = 20.0
 
 # Generate datasets
 train_ids, train_times = linear_movement(num_inputs, train_time, speed)
@@ -53,7 +53,7 @@ eqs_neurons = '''
 # STDP parameters — pair-based with soft bounds
 tau_pls   = 20 * ms
 tau_mns   = 20 * ms
-gamma     = 0.01 # TUNE ME!
+gamma     = 0.05 # TUNE ME!
 w_max     = 2.0
 w_min     = 0.0
 
@@ -327,7 +327,7 @@ np.save("left_weights.npy", left_weights)
 np.save("right_weights.npy", right_weights)
 
 # Run validation
-run_simulation(val_ids, val_times, stdp_enabled=False, label='Validation')
+#run_simulation(val_ids, val_times, stdp_enabled=False, label='Validation')
 
 # Run test
 run_simulation(test_ids, test_times, stdp_enabled=False, label='Test')
