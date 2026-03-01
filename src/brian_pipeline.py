@@ -80,29 +80,32 @@ def run_simulation(
     right_relay_group = b.NeuronGroup(N=4, name='right_relay', **LIF_kwargs)
     right_output_group = b.NeuronGroup(N=1, name='right_output', **LIF_kwargs)
 
-    # Synapses: relay to output
+    # ────────────────────────────────────────────────
+    # Create synapses
+    # ────────────────────────────────────────────────
+    
+    static_kwargs = {'model':'w : amp', 'on_pre': 'I_syn_post += w'}
+
     if stdp_enabled:  # train
         STDP_kwargs = {'model': stdp_eqs, 'on_pre': on_pre_stdp, 'on_post': on_post_stdp}
     else:  # validation/test
         STDP_kwargs = {'model': 'w : 1', 'on_pre': 'I_syn_post += w * ex_weight', 'on_post': None}
 
-    # ────────────────────────────────────────────────
     # Leftward pathway synapses (prefers decreasing IDs: 4 → 3 → 2 → 1 → 0)
-    # ────────────────────────────────────────────────
 
     # Input → left inhib (excitatory, fixed, direct)
-    S_input_left_inhib = b.Synapses(input_group, left_inhib_group, model='w : amp', on_pre='I_syn_post += w')
+    S_input_left_inhib = b.Synapses(input_group, left_inhib_group, **static_kwargs)
     S_input_left_inhib.connect(i=[0, 1, 2, 3], j=[0, 1, 2, 3])  # inputs 0-3 → left_inhib 0-3
     S_input_left_inhib.w = ex_weight
 
     # Left inhib → left relay (inhibitory, fixed, matched)
-    S_left_inhib_relay = b.Synapses(left_inhib_group, left_relay_group, model='w : amp', on_pre='I_syn_post += w')
+    S_left_inhib_relay = b.Synapses(left_inhib_group, left_relay_group, **static_kwargs)
     S_left_inhib_relay.connect()  # or 'j == i' — same size → 1:1
     S_left_inhib_relay.w = in_weight
     S_left_inhib_relay.delay = inhib_delay
 
     # Input → left relay (excitatory, fixed, shifted for leftward preference)
-    S_input_left_relay = b.Synapses(input_group, left_relay_group, model='w : amp', on_pre='I_syn_post += w')
+    S_input_left_relay = b.Synapses(input_group, left_relay_group, **static_kwargs)
     S_input_left_relay.connect(i=[1, 2, 3, 4], j=[0, 1, 2, 3])  # input 1→relay0, 2→1, 3→2, 4→3
     S_input_left_relay.w = ex_weight
 
@@ -110,23 +113,21 @@ def run_simulation(
     S_left_relay_output = b.Synapses(left_relay_group, left_output_group, **STDP_kwargs)
     S_left_relay_output.connect()  # all 4 left relays → single left output
 
-    # ────────────────────────────────────────────────
     # Rightward pathway synapses (prefers increasing IDs: 0 → 1 → 2 → 3 → 4)
-    # ────────────────────────────────────────────────
 
     # Input → right inhib (excitatory, fixed, direct)
-    S_input_right_inhib = b.Synapses(input_group, right_inhib_group, model='w : amp', on_pre='I_syn_post += w')
+    S_input_right_inhib = b.Synapses(input_group, right_inhib_group, **static_kwargs)
     S_input_right_inhib.connect(i=[1, 2, 3, 4], j=[0, 1, 2, 3])  # inputs 1-4 → right_inhib 0-3
     S_input_right_inhib.w = ex_weight
 
     # Right inhib → right relay (inhibitory, fixed, matched)
-    S_right_inhib_relay = b.Synapses(right_inhib_group, right_relay_group, model='w : amp', on_pre='I_syn_post += w')
+    S_right_inhib_relay = b.Synapses(right_inhib_group, right_relay_group, **static_kwargs)
     S_right_inhib_relay.connect()  # 1:1
     S_right_inhib_relay.w = in_weight
     S_right_inhib_relay.delay = inhib_delay
 
     # Input → right relay (excitatory, fixed, reversed shift for rightward)
-    S_input_right_relay = b.Synapses(input_group, right_relay_group, model='w : amp', on_pre='I_syn_post += w')
+    S_input_right_relay = b.Synapses(input_group, right_relay_group, **static_kwargs)
     S_input_right_relay.connect(i=[0, 1, 2, 3], j=[0, 1, 2, 3])  # input 0→relay0, 1→1, 2→2, 3→3
     S_input_right_relay.w = ex_weight
 
@@ -151,11 +152,11 @@ def run_simulation(
     # ────────────────────────────────────────────────
     # Lateral (mutual) inhibition between the two outputs
     # ────────────────────────────────────────────────
-    S_right_to_left = b.Synapses(right_output_group, left_output_group, model='w : amp', on_pre='I_syn_post += w')
+    S_right_to_left = b.Synapses(right_output_group, left_output_group, **static_kwargs)
     S_right_to_left.connect()  # single connection
     S_right_to_left.w = lateral_inhib_weight
 
-    S_left_to_right = b.Synapses(left_output_group, right_output_group, model='w : amp', on_pre='I_syn_post += w')
+    S_left_to_right = b.Synapses(left_output_group, right_output_group, **static_kwargs)
     S_left_to_right.connect()
     S_left_to_right.w = lateral_inhib_weight
 
