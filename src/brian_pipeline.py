@@ -23,12 +23,6 @@ inhib_delay = 50 * ms # for inhibitory groups (not lateral inhibition!)
 # Number of input receptors
 num_inputs = 5
 
-# Neuron model (LIF with exponential current synapses)
-eqs_neurons = '''
-    dv/dt = ((v_rest - v) + R * I_syn) / tau_m : volt
-    dI_syn/dt = -I_syn / tau_syn : amp
-'''
-
 # STDP parameters — pair-based with soft bounds
 tau_pls   = 20 * ms
 tau_mns   = 20 * ms
@@ -36,28 +30,34 @@ gamma     = 0.05 # TUNE ME!
 w_max     = 2.0
 w_min     = 0.0
 
-stdp_eqs = '''
-    w : 1
-    pre_trace : 1
-    post_trace : 1
-'''
-
-on_pre_stdp = '''
-    I_syn_post += w * ex_weight
-    pre_trace += 1
-    w += gamma * (w_max - w) * pre_trace
-    w = clip(w, w_min, w_max)
-'''
-
-on_post_stdp = '''
-    post_trace += 1
-    w += gamma * (w - w_max) * post_trace
-    w = clip(w, w_min, w_max)
-'''
-
-
 # Function to run simulation
 def run_simulation(spike_ids, spike_times, stdp_enabled=True, label=''):
+
+    # Update rules
+    eqs_neurons = '''
+        dv/dt = ((v_rest - v) + R * I_syn) / tau_m : volt
+        dI_syn/dt = -I_syn / tau_syn : amp
+    '''
+
+    stdp_eqs = '''
+        w : 1
+        pre_trace : 1
+        post_trace : 1
+    '''
+
+    on_pre_stdp = '''
+        I_syn_post += w * ex_weight
+        pre_trace += 1
+        w += gamma * (w_max - w) * pre_trace
+        w = clip(w, w_min, w_max)
+    '''
+
+    on_post_stdp = '''
+        post_trace += 1
+        w += gamma * (w - w_max) * post_trace
+        w = clip(w, w_min, w_max)
+    '''
+
     b.start_scope()
 
     # Input group
