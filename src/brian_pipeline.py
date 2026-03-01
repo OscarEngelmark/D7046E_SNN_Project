@@ -23,27 +23,6 @@ inhib_delay = 50 * ms # for inhibitory groups (not lateral inhibition!)
 # Number of input receptors
 num_inputs = 5
 
-# Simulation durations (in seconds)
-train_time = 10.0
-val_time = 1.5
-test_time = 1.5
-
-# Speed for motion (neurons/s)
-speed = 20.0
-
-# Generate datasets
-train_ids, train_times = linear_movement(num_inputs, train_time, speed)
-val_ids, val_times = linear_movement(num_inputs, val_time, speed)
-test_ids, test_times = linear_movement(num_inputs, test_time, speed)
-
-# Convert to numpy
-train_ids = np.array(train_ids)
-train_times = np.array(train_times)
-val_ids = np.array(val_ids)
-val_times = np.array(val_times)
-test_ids = np.array(test_ids)
-test_times = np.array(test_times)
-
 # Neuron model (LIF with exponential current synapses)
 eqs_neurons = '''
     dv/dt = ((v_rest - v) + R * I_syn) / tau_m : volt
@@ -116,7 +95,7 @@ def run_simulation(spike_ids, spike_times, stdp_enabled=True, label=''):
         }
 
     # ────────────────────────────────────────────────
-    # Leftward pathway synapses (prefers decreasing IDs: 4→3→2→1→0)
+    # Leftward pathway synapses (prefers decreasing IDs: 4 → 3 → 2 → 1 → 0)
     # ────────────────────────────────────────────────
 
     # Input → left inhib (excitatory, fixed, direct)
@@ -140,7 +119,7 @@ def run_simulation(spike_ids, spike_times, stdp_enabled=True, label=''):
     S_left_relay_output.connect()  # all 4 left relays → single left output
 
     # ────────────────────────────────────────────────
-    # Rightward pathway synapses (prefers increasing IDs: 0→1→2→3→4)
+    # Rightward pathway synapses (prefers increasing IDs: 0 → 1 → 2 → 3 → 4)
     # ────────────────────────────────────────────────
 
     # Input → right inhib (excitatory, fixed, direct)
@@ -161,7 +140,6 @@ def run_simulation(spike_ids, spike_times, stdp_enabled=True, label=''):
 
     # Right relay → right output (plastic with STDP)
     S_right_relay_output = b.Synapses(right_relay_group, right_output_group, **STDP_kwargs)
-    S_right_relay_output.connect()
     S_right_relay_output.connect()  # all 4 right relays → single right output
 
     # ────────────────────────────────────────────────
@@ -274,6 +252,27 @@ def run_simulation(spike_ids, spike_times, stdp_enabled=True, label=''):
     return np.array(S_left_relay_output.w[:]), np.array(S_right_relay_output.w[:])
 
 def main():
+    # Simulation durations (in seconds)
+    train_time = 10.0
+    val_time = 1.5
+    test_time = 1.5
+
+    # Speed for motion (neurons/s)
+    speed = 20.0
+
+    # Generate datasets
+    train_ids, train_times = linear_movement(num_inputs, train_time, speed)
+    val_ids, val_times = linear_movement(num_inputs, val_time, speed)
+    test_ids, test_times = linear_movement(num_inputs, test_time, speed)
+
+    # Convert to numpy
+    train_ids = np.array(train_ids)
+    train_times = np.array(train_times)
+    val_ids = np.array(val_ids)
+    val_times = np.array(val_times)
+    test_ids = np.array(test_ids)
+    test_times = np.array(test_times)
+
     # Run training
     left_weights, right_weights = run_simulation(train_ids, train_times, stdp_enabled=True, label='Training')
     np.save("left_weights.npy", left_weights)
