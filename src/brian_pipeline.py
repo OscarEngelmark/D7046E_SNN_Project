@@ -82,17 +82,9 @@ def run_simulation(
 
     # Synapses: relay to output
     if stdp_enabled:  # train
-        synapse_kwargs = {
-            'model': stdp_eqs,
-            'on_pre': on_pre_stdp,
-            'on_post': on_post_stdp
-        }
+        STDP_kwargs = {'model': stdp_eqs, 'on_pre': on_pre_stdp, 'on_post': on_post_stdp}
     else:  # validation/test
-        synapse_kwargs = {
-            'model': 'w : 1',
-            'on_pre': 'I_syn_post += w * ex_weight',
-            'on_post': None
-        }
+        STDP_kwargs = {'model': 'w : 1', 'on_pre': 'I_syn_post += w * ex_weight', 'on_post': None}
 
     # ────────────────────────────────────────────────
     # Leftward pathway synapses (prefers decreasing IDs: 4 → 3 → 2 → 1 → 0)
@@ -115,7 +107,7 @@ def run_simulation(
     S_input_left_relay.w = ex_weight
 
     # Left relay → left output (plastic with STDP)
-    S_left_relay_output = b.Synapses(left_relay_group, left_output_group, **synapse_kwargs)
+    S_left_relay_output = b.Synapses(left_relay_group, left_output_group, **STDP_kwargs)
     S_left_relay_output.connect()  # all 4 left relays → single left output
 
     # ────────────────────────────────────────────────
@@ -139,7 +131,7 @@ def run_simulation(
     S_input_right_relay.w = ex_weight
 
     # Right relay → right output (plastic with STDP)
-    S_right_relay_output = b.Synapses(right_relay_group, right_output_group, **synapse_kwargs)
+    S_right_relay_output = b.Synapses(right_relay_group, right_output_group, **STDP_kwargs)
     S_right_relay_output.connect()  # all 4 right relays → single right output
 
     # ────────────────────────────────────────────────
