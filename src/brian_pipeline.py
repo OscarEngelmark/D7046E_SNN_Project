@@ -76,6 +76,7 @@ on_post_stdp = '''
     w = clip(w, w_min, w_max)
 '''
 
+
 # Function to run simulation
 def run_simulation(spike_ids, spike_times, stdp_enabled=True, label=''):
     b.start_scope()
@@ -83,61 +84,22 @@ def run_simulation(spike_ids, spike_times, stdp_enabled=True, label=''):
     # Input group
     input_group = b.SpikeGeneratorGroup(num_inputs, spike_ids, spike_times * second)
 
+    LIF_kwargs = {
+        'model': eqs_neurons,
+        'threshold': 'v > v_thres',
+        'reset': 'v = v_reset',
+        'method': 'exact'
+    }
+
     # Left pathway
-    left_inhib_group = b.NeuronGroup(
-        N=4,
-        model=eqs_neurons,
-        threshold='v > v_thres',
-        reset='v = v_reset',
-        method='exact',
-        name='left_inhib'
-    )
-
-    left_relay_group = b.NeuronGroup(
-        N=4,
-        model=eqs_neurons,
-        threshold='v > v_thres',
-        reset='v = v_reset',
-        method='exact',
-        name='left_relay'
-    )
-
-    left_output_group = b.NeuronGroup(
-        N=1,
-        model=eqs_neurons,
-        threshold='v > v_thres',
-        reset='v = v_reset',
-        method='exact',
-        name='left_output'
-    )
+    left_inhib_group = b.NeuronGroup(N=4, name='left_inhib', **LIF_kwargs)
+    left_relay_group = b.NeuronGroup(N=4, name='left_relay', **LIF_kwargs)
+    left_output_group = b.NeuronGroup(N=1, name='left_output', **LIF_kwargs)
 
     # Right pathway
-    right_inhib_group = b.NeuronGroup(
-        N=4,
-        model=eqs_neurons,
-        threshold='v > v_thres',
-        reset='v = v_reset',
-        method='exact',
-        name='right_inhib'
-    )
-
-    right_relay_group = b.NeuronGroup(
-        N=4,
-        model=eqs_neurons,
-        threshold='v > v_thres',
-        reset='v = v_reset',
-        method='exact',
-        name='right_relay'
-    )
-
-    right_output_group = b.NeuronGroup(
-        N=1,
-        model=eqs_neurons,
-        threshold='v > v_thres',
-        reset='v = v_reset',
-        method='exact',
-        name='right_output'
-    )
+    right_inhib_group = b.NeuronGroup(N=4, name='right_inhib', **LIF_kwargs)
+    right_relay_group = b.NeuronGroup(N=4, name='right_relay', **LIF_kwargs)
+    right_output_group = b.NeuronGroup(N=1, name='right_output', **LIF_kwargs)
 
     # Synapses: relay to output
     if stdp_enabled:  # train
