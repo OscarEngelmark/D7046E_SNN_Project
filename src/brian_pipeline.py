@@ -82,13 +82,13 @@ def run_simulation(spike_ids, spike_times, stdp_enabled=True, label=''):
 
     # Synapses: relay to output
     if stdp_enabled:  # train
-        STDP_kwargs = {
+        synapse_kwargs = {
             'model': stdp_eqs,
             'on_pre': on_pre_stdp,
             'on_post': on_post_stdp
         }
     else:  # validation/test
-        STDP_kwargs = {
+        synapse_kwargs = {
             'model': 'w : 1',
             'on_pre': 'I_syn_post += w * ex_weight',
             'on_post': None
@@ -115,7 +115,7 @@ def run_simulation(spike_ids, spike_times, stdp_enabled=True, label=''):
     S_input_left_relay.w = ex_weight
 
     # Left relay → left output (plastic with STDP)
-    S_left_relay_output = b.Synapses(left_relay_group, left_output_group, **STDP_kwargs)
+    S_left_relay_output = b.Synapses(left_relay_group, left_output_group, **synapse_kwargs)
     S_left_relay_output.connect()  # all 4 left relays → single left output
 
     # ────────────────────────────────────────────────
@@ -139,7 +139,7 @@ def run_simulation(spike_ids, spike_times, stdp_enabled=True, label=''):
     S_input_right_relay.w = ex_weight
 
     # Right relay → right output (plastic with STDP)
-    S_right_relay_output = b.Synapses(right_relay_group, right_output_group, **STDP_kwargs)
+    S_right_relay_output = b.Synapses(right_relay_group, right_output_group, **synapse_kwargs)
     S_right_relay_output.connect()  # all 4 right relays → single right output
 
     # ────────────────────────────────────────────────
@@ -159,15 +159,11 @@ def run_simulation(spike_ids, spike_times, stdp_enabled=True, label=''):
     # ────────────────────────────────────────────────
     # Lateral (mutual) inhibition between the two outputs
     # ────────────────────────────────────────────────
-    S_right_to_left = b.Synapses(right_output_group, left_output_group,
-                                 model='w : amp',
-                                 on_pre='I_syn_post += w')
+    S_right_to_left = b.Synapses(right_output_group, left_output_group, model='w : amp', on_pre='I_syn_post += w')
     S_right_to_left.connect()  # single connection
     S_right_to_left.w = lateral_inhib_weight
 
-    S_left_to_right = b.Synapses(left_output_group, right_output_group,
-                                 model='w : amp',
-                                 on_pre='I_syn_post += w')
+    S_left_to_right = b.Synapses(left_output_group, right_output_group, model='w : amp', on_pre='I_syn_post += w')
     S_left_to_right.connect()
     S_left_to_right.w = lateral_inhib_weight
 
