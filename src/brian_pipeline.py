@@ -30,7 +30,7 @@ def run_simulation(
         w_min = 0.0,                        # Lower synaptic weight limit
 ):
 
-    # Update rules
+    # Define Brian2 rules
     eqs_neurons = '''
         dv/dt = ((v_rest - v) + r * I_syn) / tau_m : volt
         dI_syn/dt = -I_syn / tau_syn : amp
@@ -57,7 +57,10 @@ def run_simulation(
 
     b.start_scope()
 
-    # Input group
+    # ────────────────────────────────────────────────
+    # Create neuron groups
+    # ────────────────────────────────────────────────
+
     input_group = b.SpikeGeneratorGroup(num_inputs, spike_ids, spike_times * second)
 
     LIF_kwargs = {
