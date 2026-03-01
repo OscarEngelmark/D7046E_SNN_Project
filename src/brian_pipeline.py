@@ -8,26 +8,26 @@ from matplotlib.ticker import MultipleLocator
 
 # Function to run simulation
 def run_simulation(
-        num_inputs,
-        spike_ids,
-        spike_times,
-        stdp_enabled=True,
-        label='',
-        v_rest = -70 * mV,
-        v_reset = -80 * mV,
-        v_thres = -60 * mV,
-        tau_m = 20 * ms,
-        r = 100 * Mohm,
-        tau_syn = 35 * ms,
-        ex_weight = 600 * pA,
-        in_weight = -100 * pA,
-        lateral_inhib_weight = -20 * pA,
-        inhib_delay = 50 * ms,  # for inhibitory groups (not lateral inhibition!)
+        num_inputs,                         # Number of receptor neurons
+        spike_ids,                          # IDs of input neuron spikes
+        spike_times,                        # Input neuron spike times
+        stdp_enabled=True,                  # Used for training
+        label='',                           # Label for plot
+        v_rest = -70 * mV,                  # Resting potential
+        v_reset = -80 * mV,                 # Reset level for potential
+        v_thres = -60 * mV,                 # Spiking threshold
+        tau_m = 20 * ms,                    # Membrane time constant
+        r = 100 * Mohm,                     # Membrane resistance
+        tau_syn = 35 * ms,                  # Synapse time constant
+        ex_weight = 600 * pA,               # Excitatory synapse weight
+        in_weight = -100 * pA,              # Inhibitory synapse weight
+        lateral_inhib_weight = -20 * pA,    # Weight of lateral inhibition
+        inhib_delay = 50 * ms,              # Spike delay for inhibitory groups (not lateral inhibition!)
         tau_pls = 20 * ms,
         tau_mns = 20 * ms,
-        gamma = 0.05,  # TUNE ME!
-        w_max = 2.0,
-        w_min = 0.0,
+        gamma = 0.05,                       # STDP learning rate
+        w_max = 2.0,                        # Upper synaptic weight limit
+        w_min = 0.0,                        # Lower synaptic weight limit
 ):
 
     # Update rules
