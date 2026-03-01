@@ -14,10 +14,10 @@ v_reset = -80 * mV
 v_thres = -60 * mV
 tau_m = 20 * ms
 R = 100 * Mohm
-tau_syn = 30 * ms
+tau_syn = 35 * ms
 ex_weight = 600 * pA
-in_weight = -150 * pA
-lateral_inhib_weight = -0 * pA
+in_weight = -100 * pA
+lateral_inhib_weight = -20 * pA
 inhib_delay = 50 * ms # for inhibitory groups (not lateral inhibition!)
 
 # Number of input receptors
@@ -257,6 +257,9 @@ def run_simulation(spike_ids, spike_times, stdp_enabled=True, label=''):
     sim_duration = max(spike_times) * second + 10 * ms
     b.run(sim_duration)
 
+    print("Left relay weights:", S_left_relay_output.w[:])
+    print("Right relay weights:", S_right_relay_output.w[:])
+
     print(f"Left relay weights mean/std: {np.mean(S_left_relay_output.w):.3f} / {np.std(S_left_relay_output.w):.3f}")
     print(f"Right relay weights mean/std: {np.mean(S_right_relay_output.w):.3f} / {np.std(S_right_relay_output.w):.3f}")
 
@@ -321,13 +324,17 @@ def run_simulation(spike_ids, spike_times, stdp_enabled=True, label=''):
     # Return learned weights (relay to output)
     return np.array(S_left_relay_output.w[:]), np.array(S_right_relay_output.w[:])
 
-# Run training
-left_weights, right_weights = run_simulation(train_ids, train_times, stdp_enabled=True, label='Training')
-np.save("left_weights.npy", left_weights)
-np.save("right_weights.npy", right_weights)
+def main():
+    # Run training
+    left_weights, right_weights = run_simulation(train_ids, train_times, stdp_enabled=True, label='Training')
+    np.save("left_weights.npy", left_weights)
+    np.save("right_weights.npy", right_weights)
 
-# Run validation
-#run_simulation(val_ids, val_times, stdp_enabled=False, label='Validation')
+    # Run validation
+    # run_simulation(val_ids, val_times, stdp_enabled=False, label='Validation')
 
-# Run test
-run_simulation(test_ids, test_times, stdp_enabled=False, label='Test')
+    # Run test
+    run_simulation(test_ids, test_times, stdp_enabled=False, label='Test')
+
+if __name__ == '__main__':
+    main()
