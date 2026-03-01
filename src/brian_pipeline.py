@@ -6,36 +6,33 @@ from brian2 import ms, mV, Mohm, pA, volt, amp, second
 from brian2 import prefs
 from matplotlib.ticker import MultipleLocator
 
-prefs.codegen.target = "numpy" # can use cython
-
-# Biophysical parameters
-v_rest = -70 * mV
-v_reset = -80 * mV
-v_thres = -60 * mV
-tau_m = 20 * ms
-R = 100 * Mohm
-tau_syn = 35 * ms
-ex_weight = 600 * pA
-in_weight = -100 * pA
-lateral_inhib_weight = -20 * pA
-inhib_delay = 50 * ms # for inhibitory groups (not lateral inhibition!)
-
-# Number of input receptors
-num_inputs = 5
-
-# STDP parameters — pair-based with soft bounds
-tau_pls   = 20 * ms
-tau_mns   = 20 * ms
-gamma     = 0.05 # TUNE ME!
-w_max     = 2.0
-w_min     = 0.0
-
 # Function to run simulation
-def run_simulation(spike_ids, spike_times, stdp_enabled=True, label=''):
+def run_simulation(
+        num_inputs,
+        spike_ids,
+        spike_times,
+        stdp_enabled=True,
+        label='',
+        v_rest = -70 * mV,
+        v_reset = -80 * mV,
+        v_thres = -60 * mV,
+        tau_m = 20 * ms,
+        r = 100 * Mohm,
+        tau_syn = 35 * ms,
+        ex_weight = 600 * pA,
+        in_weight = -100 * pA,
+        lateral_inhib_weight = -20 * pA,
+        inhib_delay = 50 * ms,  # for inhibitory groups (not lateral inhibition!)
+        tau_pls = 20 * ms,
+        tau_mns = 20 * ms,
+        gamma = 0.05,  # TUNE ME!
+        w_max = 2.0,
+        w_min = 0.0,
+):
 
     # Update rules
     eqs_neurons = '''
-        dv/dt = ((v_rest - v) + R * I_syn) / tau_m : volt
+        dv/dt = ((v_rest - v) + r * I_syn) / tau_m : volt
         dI_syn/dt = -I_syn / tau_syn : amp
     '''
 
@@ -248,6 +245,32 @@ def run_simulation(spike_ids, spike_times, stdp_enabled=True, label=''):
     return np.array(S_left_relay_output.w[:]), np.array(S_right_relay_output.w[:])
 
 def main():
+    prefs.codegen.target = "numpy"  # can use cython
+
+    # Number of input receptors
+    num_inputs = 5
+
+    params = {
+        # Biophysical parameters
+        "v_rest": -70 * mV,
+        "v_reset": -80 * mV,
+        "v_thres": -60 * mV,
+        "tau_m": 20 * ms,
+        "r": 100 * Mohm,
+        "tau_syn": 35 * ms,
+        "ex_weight": 600 * pA,
+        "in_weight": -100 * pA,
+        "lateral_inhib_weight": -20 * pA,
+        "inhib_delay": 50 * ms,  # for inhibitory groups (not lateral inhibition!)
+
+        # STDP parameters — pair-based with soft bounds
+        "tau_pls": 20 * ms,
+        "tau_mns": 20 * ms,
+        "gamma": 0.05,  # TUNE ME!
+        "w_max": 2.0,
+        "w_min": 0.0
+    }
+
     # Simulation durations (in seconds)
     train_time = 10.0
     val_time = 1.5
@@ -270,7 +293,7 @@ def main():
     test_times = np.array(test_times)
 
     # Run training
-    left_weights, right_weights = run_simulation(train_ids, train_times, stdp_enabled=True, label='Training')
+    left_weights, right_weights = run_simulation(num_inputs, train_ids, train_times, stdp_enabled=True, label='Training', **params)
     np.save("left_weights.npy", left_weights)
     np.save("right_weights.npy", right_weights)
 
@@ -278,7 +301,7 @@ def main():
     # run_simulation(val_ids, val_times, stdp_enabled=False, label='Validation')
 
     # Run test
-    run_simulation(test_ids, test_times, stdp_enabled=False, label='Test')
+    run_simulation(num_inputs, test_ids, test_times, stdp_enabled=False, label='Test', **params)
 
 if __name__ == '__main__':
     main()
