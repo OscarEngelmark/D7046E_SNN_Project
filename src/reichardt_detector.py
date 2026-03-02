@@ -12,7 +12,7 @@ def plot(num_inputs, v_thres, monitors, label):
 
     # 1. Raster plot: inputs (negative) + left/right outputs
     t_ms_all = monitors['input_spikes'].t / ms  # consistent ms
-    input_spike_ids = monitors['input_spikes'].i - num_inputs  # -5 to -1
+    input_spike_ids = monitors['input_spikes'].i - num_inputs
 
     left_spike_ms = monitors['left_output_spikes'].t / ms
     left_spike_ids = np.full_like(left_spike_ms, 0)  # fixed ID 0 for left
@@ -93,7 +93,7 @@ def run_simulation(
         w_min = 0.0,                        # Lower synaptic weight limit
 ):
 
-    np.random.seed(1)
+    np.random.seed(2)
     b.device.reinit()
     b.device.activate()
     b.start_scope()
@@ -137,13 +137,13 @@ def run_simulation(
     }
 
     # Left pathway
-    left_inhib_group = b.NeuronGroup(N=4, name='left_inhib', **LIF_kwargs)
-    left_relay_group = b.NeuronGroup(N=4, name='left_relay', **LIF_kwargs)
+    left_inhib_group = b.NeuronGroup(N=num_inputs-1, name='left_inhib', **LIF_kwargs)
+    left_relay_group = b.NeuronGroup(N=num_inputs-1, name='left_relay', **LIF_kwargs)
     left_output_group = b.NeuronGroup(N=1, name='left_output', **LIF_kwargs)
 
     # Right pathway
-    right_inhib_group = b.NeuronGroup(N=4, name='right_inhib', **LIF_kwargs)
-    right_relay_group = b.NeuronGroup(N=4, name='right_relay', **LIF_kwargs)
+    right_inhib_group = b.NeuronGroup(N=num_inputs-1, name='right_inhib', **LIF_kwargs)
+    right_relay_group = b.NeuronGroup(N=num_inputs-1, name='right_relay', **LIF_kwargs)
     right_output_group = b.NeuronGroup(N=1, name='right_output', **LIF_kwargs)
 
     for grp in [left_inhib_group, left_relay_group, left_output_group,
@@ -166,7 +166,7 @@ def run_simulation(
 
     # Input → left inhib (excitatory, fixed, direct)
     S_input_left_inhib = b.Synapses(input_group, left_inhib_group, **static_kwargs)
-    S_input_left_inhib.connect(i=[0, 1, 2, 3], j=[0, 1, 2, 3])  # inputs 0-3 → left_inhib 0-3
+    S_input_left_inhib.connect(i=list(range(num_inputs-1)), j=list(range(num_inputs-1)))  # inputs 0-3 → left_inhib 0-3
     S_input_left_inhib.w = ex_weight
 
     # Left inhib → left relay (inhibitory, fixed, matched)
@@ -177,7 +177,7 @@ def run_simulation(
 
     # Input → left relay (excitatory, fixed, shifted for leftward preference)
     S_input_left_relay = b.Synapses(input_group, left_relay_group, **static_kwargs)
-    S_input_left_relay.connect(i=[1, 2, 3, 4], j=[0, 1, 2, 3])  # input 1→relay0, 2→1, 3→2, 4→3
+    S_input_left_relay.connect(i=list(range(1, num_inputs)), j=list(range(num_inputs-1)))  # input 1→relay0, 2→1, 3→2, 4→3
     S_input_left_relay.w = ex_weight
 
     # Left relay → left output (plastic with STDP)
@@ -188,7 +188,7 @@ def run_simulation(
 
     # Input → right inhib (excitatory, fixed, direct)
     S_input_right_inhib = b.Synapses(input_group, right_inhib_group, **static_kwargs)
-    S_input_right_inhib.connect(i=[1, 2, 3, 4], j=[0, 1, 2, 3])  # inputs 1-4 → right_inhib 0-3
+    S_input_right_inhib.connect(i=list(range(1, num_inputs)), j=list(range(num_inputs-1)))  # inputs 1-4 → right_inhib 0-3
     S_input_right_inhib.w = ex_weight
 
     # Right inhib → right relay (inhibitory, fixed, matched)
@@ -199,7 +199,7 @@ def run_simulation(
 
     # Input → right relay (excitatory, fixed, reversed shift for rightward)
     S_input_right_relay = b.Synapses(input_group, right_relay_group, **static_kwargs)
-    S_input_right_relay.connect(i=[0, 1, 2, 3], j=[0, 1, 2, 3])  # input 0→relay0, 1→1, 2→2, 3→3
+    S_input_right_relay.connect(i=list(range(num_inputs-1)), j=list(range(num_inputs-1)))  # input 0→relay0, 1→1, 2→2, 3→3
     S_input_right_relay.w = ex_weight
 
     # Right relay → right output (plastic with STDP)
