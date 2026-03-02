@@ -86,13 +86,14 @@ def run_simulation(
         in_weight = -100 * pA,              # Inhibitory synapse weight
         lateral_inhib_weight = -20 * pA,    # Weight of lateral inhibition
         inhib_delay = 50 * ms,              # Spike delay for inhibitory groups (not lateral inhibition!)
-        tau_pls = 20 * ms,
-        tau_mns = 20 * ms,
+        tau_pls = 20 * ms,                  # Presynaptic trace time constant
+        tau_mns = 20 * ms,                  # Postsynaptic trace time constant
         gamma = 0.05,                       # STDP learning rate
         w_max = 2.0,                        # Upper synaptic weight limit
         w_min = 0.0,                        # Lower synaptic weight limit
 ):
 
+    np.random.seed(1)
     b.device.reinit()
     b.device.activate()
     b.start_scope()
@@ -210,8 +211,8 @@ def run_simulation(
     # ────────────────────────────────────────────────
     if stdp_enabled:
         # Random initialization for both pathways during training
-        S_left_relay_output.w = 'rand() * 0.5'
-        S_right_relay_output.w = 'rand() * 0.5'
+        S_left_relay_output.w = '0.3 + rand() * 0.2'
+        S_right_relay_output.w = '0.3 + rand() * 0.2'
     else:
         # Load trained weights (you will need two files now)
         left_weights = np.load("left_weights.npy")
