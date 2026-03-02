@@ -286,8 +286,8 @@ def main():
         "tau_m": 30 * ms,
         "r": 100 * Mohm,
         "tau_syn": 40 * ms,
-        "ex_weight": 500 * pA,
-        "in_weight": -70 * pA,
+        "ex_weight": 600 * pA,
+        "in_weight": -80 * pA,
         "lateral_inhib_weight": -30 * pA,
         "inhib_delay": 10 * ms,  # for inhibitory groups (not lateral inhibition!)
 
