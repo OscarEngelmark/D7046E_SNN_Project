@@ -30,6 +30,10 @@ def run_simulation(
         w_min = 0.0,                        # Lower synaptic weight limit
 ):
 
+    b.device.reinit()
+    b.device.activate()
+    b.start_scope()
+
     # Define Brian2 rules
     eqs_neurons = '''
         dv/dt = ((v_rest - v) + r * I_syn) / tau_m : volt
@@ -54,8 +58,6 @@ def run_simulation(
         w += gamma * (w_max - w) * pre_trace
         w = clip(w, w_min, w_max)
     '''
-
-    b.start_scope()
 
     # ────────────────────────────────────────────────
     # Create neuron groups
@@ -268,7 +270,7 @@ def main():
         "tau_syn": 40 * ms,
         "ex_weight": 500 * pA,
         "in_weight": -70 * pA,
-        "lateral_inhib_weight": -50 * pA,
+        "lateral_inhib_weight": -40 * pA,
         "inhib_delay": 10 * ms,  # for inhibitory groups (not lateral inhibition!)
 
         # STDP parameters — pair-based with soft bounds
