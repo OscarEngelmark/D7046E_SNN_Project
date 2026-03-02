@@ -162,11 +162,14 @@ def run_simulation(
     else:  # validation/test
         STDP_kwargs = {'model': 'w : 1', 'on_pre': 'I_syn_post += w * ex_weight', 'on_post': None}
 
+    sym_idx = list(range(num_inputs-1))
+    shift_idx = list(range(1, num_inputs))
+
     # Leftward pathway synapses (prefers decreasing IDs: 4 → 3 → 2 → 1 → 0)
 
     # Input → left inhib (excitatory, fixed, direct)
     S_input_left_inhib = b.Synapses(input_group, left_inhib_group, **static_kwargs)
-    S_input_left_inhib.connect(i=list(range(num_inputs-1)), j=list(range(num_inputs-1)))  # inputs 0-3 → left_inhib 0-3
+    S_input_left_inhib.connect(i=sym_idx, j=sym_idx)  # inputs 0-3 → left_inhib 0-3
     S_input_left_inhib.w = ex_weight
 
     # Left inhib → left relay (inhibitory, fixed, matched)
@@ -177,7 +180,7 @@ def run_simulation(
 
     # Input → left relay (excitatory, fixed, shifted for leftward preference)
     S_input_left_relay = b.Synapses(input_group, left_relay_group, **static_kwargs)
-    S_input_left_relay.connect(i=list(range(1, num_inputs)), j=list(range(num_inputs-1)))  # input 1→relay0, 2→1, 3→2, 4→3
+    S_input_left_relay.connect(i=shift_idx, j=sym_idx)  # input 1→relay0, 2→1, 3→2, 4→3
     S_input_left_relay.w = ex_weight
 
     # Left relay → left output (plastic with STDP)
@@ -188,7 +191,7 @@ def run_simulation(
 
     # Input → right inhib (excitatory, fixed, direct)
     S_input_right_inhib = b.Synapses(input_group, right_inhib_group, **static_kwargs)
-    S_input_right_inhib.connect(i=list(range(1, num_inputs)), j=list(range(num_inputs-1)))  # inputs 1-4 → right_inhib 0-3
+    S_input_right_inhib.connect(i=shift_idx, j=sym_idx)  # inputs 1-4 → right_inhib 0-3
     S_input_right_inhib.w = ex_weight
 
     # Right inhib → right relay (inhibitory, fixed, matched)
@@ -199,7 +202,7 @@ def run_simulation(
 
     # Input → right relay (excitatory, fixed, reversed shift for rightward)
     S_input_right_relay = b.Synapses(input_group, right_relay_group, **static_kwargs)
-    S_input_right_relay.connect(i=list(range(num_inputs-1)), j=list(range(num_inputs-1)))  # input 0→relay0, 1→1, 2→2, 3→3
+    S_input_right_relay.connect(i=sym_idx, j=sym_idx)  # input 0→relay0, 1→1, 2→2, 3→3
     S_input_right_relay.w = ex_weight
 
     # Right relay → right output (plastic with STDP)
