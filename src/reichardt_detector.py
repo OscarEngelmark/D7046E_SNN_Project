@@ -45,13 +45,13 @@ def run_simulation(
     on_pre_stdp = '''
         I_syn_post += w * ex_weight
         pre_trace += 1
-        w += gamma * (w_max - w) * pre_trace
+        w += gamma * (w_min - w) * post_trace
         w = clip(w, w_min, w_max)
     '''
 
     on_post_stdp = '''
         post_trace += 1
-        w += gamma * (w - w_max) * post_trace
+        w += gamma * (w_max - w) * pre_trace
         w = clip(w, w_min, w_max)
     '''
 
