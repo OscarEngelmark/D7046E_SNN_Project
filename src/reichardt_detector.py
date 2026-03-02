@@ -265,16 +265,16 @@ def main():
         "v_thres": -60 * mV,
         "tau_m": 30 * ms,
         "r": 100 * Mohm,
-        "tau_syn": 60 * ms,
-        "ex_weight": 600 * pA,
-        "in_weight": -100 * pA,
-        "lateral_inhib_weight": -0 * pA,
-        "inhib_delay": 50 * ms,  # for inhibitory groups (not lateral inhibition!)
+        "tau_syn": 40 * ms,
+        "ex_weight": 500 * pA,
+        "in_weight": -70 * pA,
+        "lateral_inhib_weight": -50 * pA,
+        "inhib_delay": 10 * ms,  # for inhibitory groups (not lateral inhibition!)
 
         # STDP parameters — pair-based with soft bounds
         "tau_pls": 30 * ms,
         "tau_mns": 30 * ms,
-        "gamma": 0.1,  # TUNE ME!
+        "gamma": 0.05,  # TUNE ME!
         "w_max": 2.0,
         "w_min": 0.0
     }
