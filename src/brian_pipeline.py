@@ -180,16 +180,16 @@ def run_simulation(
     sim_duration = max(spike_times) * second + 10 * ms
     b.run(sim_duration)
 
-    if stdp_enabled:
-        # Normalize weights in each pathway to mean=1 (preserves relative strengths, balances total)
-        for S in [S_left_relay_output, S_right_relay_output]:
-            w = S.w[:]
-            mean_w = np.mean(w)
-            if mean_w > 0:
-                S.w[:] = w / mean_w * 1.0  # scale to target mean=1
+    # if stdp_enabled:
+    #     # Normalize weights in each pathway to mean=1 (preserves relative strengths, balances total)
+    #     for S in [S_left_relay_output, S_right_relay_output]:
+    #         w = S.w[:]
+    #         mean_w = np.mean(w)
+    #         if mean_w > 0:
+    #             S.w[:] = w / mean_w * 1.0  # scale to target mean=1
 
-        print("Left relay weights:", S_left_relay_output.w[:])
-        print("Right relay weights:", S_right_relay_output.w[:])
+    print("Left relay weights:", S_left_relay_output.w[:])
+    print("Right relay weights:", S_right_relay_output.w[:])
 
     # ────────────────────────────────────────────────
     # Plotting
@@ -263,9 +263,9 @@ def main():
         "v_rest": -70 * mV,
         "v_reset": -80 * mV,
         "v_thres": -60 * mV,
-        "tau_m": 20 * ms,
+        "tau_m": 30 * ms,
         "r": 100 * Mohm,
-        "tau_syn": 35 * ms,
+        "tau_syn": 60 * ms,
         "ex_weight": 600 * pA,
         "in_weight": -100 * pA,
         "lateral_inhib_weight": -0 * pA,
