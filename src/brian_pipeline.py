@@ -38,8 +38,8 @@ def run_simulation(
 
     stdp_eqs = '''
         w : 1
-        pre_trace : 1
-        post_trace : 1
+        dpre_trace/dt = -pre_trace / tau_pls  : 1 (event-driven)
+        dpost_trace/dt = -post_trace / tau_mns : 1 (event-driven)
     '''
 
     on_pre_stdp = '''
@@ -79,6 +79,11 @@ def run_simulation(
     right_inhib_group = b.NeuronGroup(N=4, name='right_inhib', **LIF_kwargs)
     right_relay_group = b.NeuronGroup(N=4, name='right_relay', **LIF_kwargs)
     right_output_group = b.NeuronGroup(N=1, name='right_output', **LIF_kwargs)
+
+    for grp in [left_inhib_group, left_relay_group, left_output_group,
+                right_inhib_group, right_relay_group, right_output_group]:
+        grp.v = v_rest
+        grp.I_syn = 0 * amp
 
     # ────────────────────────────────────────────────
     # Create synapses
@@ -169,15 +174,22 @@ def run_simulation(
     state_mon_left = b.StateMonitor(left_output_group, 'v', record=True, name='left_v')
     state_mon_right = b.StateMonitor(right_output_group, 'v', record=True, name='right_v')
 
-    # Run
+    # ────────────────────────────────────────────────
+    # Running the simulation
+    # ────────────────────────────────────────────────
     sim_duration = max(spike_times) * second + 10 * ms
     b.run(sim_duration)
 
-    print("Left relay weights:", S_left_relay_output.w[:])
-    print("Right relay weights:", S_right_relay_output.w[:])
+    if stdp_enabled:
+        # Normalize weights in each pathway to mean=1 (preserves relative strengths, balances total)
+        for S in [S_left_relay_output, S_right_relay_output]:
+            w = S.w[:]
+            mean_w = np.mean(w)
+            if mean_w > 0:
+                S.w[:] = w / mean_w * 1.0  # scale to target mean=1
 
-    print(f"Left relay weights mean/std: {np.mean(S_left_relay_output.w):.3f} / {np.std(S_left_relay_output.w):.3f}")
-    print(f"Right relay weights mean/std: {np.mean(S_right_relay_output.w):.3f} / {np.std(S_right_relay_output.w):.3f}")
+        print("Left relay weights:", S_left_relay_output.w[:])
+        print("Right relay weights:", S_right_relay_output.w[:])
 
     # ────────────────────────────────────────────────
     # Plotting
@@ -256,13 +268,13 @@ def main():
         "tau_syn": 35 * ms,
         "ex_weight": 600 * pA,
         "in_weight": -100 * pA,
-        "lateral_inhib_weight": -20 * pA,
+        "lateral_inhib_weight": -0 * pA,
         "inhib_delay": 50 * ms,  # for inhibitory groups (not lateral inhibition!)
 
         # STDP parameters — pair-based with soft bounds
-        "tau_pls": 20 * ms,
-        "tau_mns": 20 * ms,
-        "gamma": 0.05,  # TUNE ME!
+        "tau_pls": 30 * ms,
+        "tau_mns": 30 * ms,
+        "gamma": 0.1,  # TUNE ME!
         "w_max": 2.0,
         "w_min": 0.0
     }
