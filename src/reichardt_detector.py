@@ -6,6 +6,69 @@ from brian2 import ms, mV, Mohm, pA, volt, amp, second
 from brian2 import prefs
 from matplotlib.ticker import MultipleLocator
 
+def plot(num_inputs, v_thres, monitors, label):
+
+    fig, axs = plt.subplots(2, 1, figsize=(14, 9), sharex=True, gridspec_kw={'height_ratios': [2, 1.2]})
+
+    # 1. Raster plot: inputs (negative) + left/right outputs
+    t_ms_all = monitors['input_spikes'].t / ms  # consistent ms
+    input_spike_ids = monitors['input_spikes'].i - num_inputs  # -5 to -1
+
+    left_spike_ms = monitors['left_output_spikes'].t / ms
+    left_spike_ids = np.full_like(left_spike_ms, 0)  # fixed ID 0 for left
+
+    right_spike_ms = monitors['right_output_spikes'].t / ms
+    right_spike_ids = np.full_like(right_spike_ms, 1)  # fixed ID 1 for right
+
+    # Combine
+    all_times_ms = np.concatenate([t_ms_all, left_spike_ms, right_spike_ms])
+    all_ids = np.concatenate([input_spike_ids, left_spike_ids, right_spike_ids])
+
+    axs[0].scatter(all_times_ms, all_ids, marker='|', s=40, c='k', lw=1.8)
+    axs[0].set_ylabel('Neuron ID\n(inputs negative, left output = 0, right = 1)')
+    axs[0].yaxis.set_major_locator(MultipleLocator(1))
+    axs[0].grid(True, alpha=0.4, linestyle='--')
+    axs[0].set_title(f'{label} — Input and Output Spikes')
+
+    # Annotate
+    axs[0].text(0.02, 0.98, 'Leftward detector (0)\nRightward detector (1)',
+                transform=axs[0].transAxes, va='top', ha='left',
+                bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))
+
+
+    # 2. Output voltages (both)
+    t_ms = monitors['left_output_states'].t / ms
+    axs[1].plot(
+        t_ms,
+        monitors['left_output_states'].v[0] / mV,
+        label='Left output (leftward pref.)',
+        c='darkorange',
+        lw=1.4
+    )
+    axs[1].plot(
+        t_ms,
+        monitors['right_output_states'].v[0] / mV,
+        label='Right output (rightward pref.)',
+        c='teal',
+        lw=1.4
+    )
+
+    # Threshold
+    axs[1].axhline(y=v_thres / mV, color='r', ls='--', lw=1.0, label='threshold')
+
+    # Debug: vlines at output spike times
+    for spike_t in left_spike_ms:
+        axs[1].axvline(x=spike_t, color='darkorange', ls=':', lw=0.8)
+    for spike_t in right_spike_ms:
+        axs[1].axvline(x=spike_t, color='teal', ls=':', lw=0.8)
+
+    axs[1].set_ylabel('Membrane potential [mV]')
+    axs[1].set_xlabel('Time [ms]')
+    axs[1].legend(loc='upper right', fontsize=10)
+    axs[1].grid(True, alpha=0.3)
+
+    plt.tight_layout()
+
 # Function to run simulation
 def run_simulation(
         num_inputs,                         # Number of receptor neurons
@@ -176,19 +239,19 @@ def run_simulation(
     state_mon_left = b.StateMonitor(left_output_group, 'v', record=True, name='left_v')
     state_mon_right = b.StateMonitor(right_output_group, 'v', record=True, name='right_v')
 
+    monitors = {
+        'input_spikes': spike_mon_input,
+        'left_output_spikes': spike_mon_left,
+        'right_output_spikes': spike_mon_right,
+        'left_output_states': state_mon_left,
+        'right_output_states': state_mon_right,
+    }
+
     # ────────────────────────────────────────────────
     # Running the simulation
     # ────────────────────────────────────────────────
     sim_duration = max(spike_times) * second + 10 * ms
     b.run(sim_duration)
-
-    # if stdp_enabled:
-    #     # Normalize weights in each pathway to mean=1 (preserves relative strengths, balances total)
-    #     for S in [S_left_relay_output, S_right_relay_output]:
-    #         w = S.w[:]
-    #         mean_w = np.mean(w)
-    #         if mean_w > 0:
-    #             S.w[:] = w / mean_w * 1.0  # scale to target mean=1
 
     print("Left relay weights:", S_left_relay_output.w[:])
     print("Right relay weights:", S_right_relay_output.w[:])
@@ -196,54 +259,8 @@ def run_simulation(
     # ────────────────────────────────────────────────
     # Plotting
     # ────────────────────────────────────────────────
-    fig, axs = plt.subplots(2, 1, figsize=(14, 9), sharex=True,
-                            gridspec_kw={'height_ratios': [2, 1.2]})
 
-    # 1. Raster plot: inputs (negative) + left/right outputs
-    t_ms_all = spike_mon_input.t / ms  # consistent ms
-    input_spike_ids = spike_mon_input.i - num_inputs  # -5 to -1
-
-    left_spike_ms = spike_mon_left.t / ms
-    left_spike_ids = np.full_like(left_spike_ms, 0)  # fixed ID 0 for left
-
-    right_spike_ms = spike_mon_right.t / ms
-    right_spike_ids = np.full_like(right_spike_ms, 1)  # fixed ID 1 for right
-
-    # Combine
-    all_times_ms = np.concatenate([t_ms_all, left_spike_ms, right_spike_ms])
-    all_ids = np.concatenate([input_spike_ids, left_spike_ids, right_spike_ids])
-
-    axs[0].scatter(all_times_ms, all_ids, marker='|', s=40, c='k', lw=1.8)
-    axs[0].set_ylabel('Neuron ID\n(inputs negative, left output = 0, right = 1)')
-    axs[0].yaxis.set_major_locator(MultipleLocator(1))
-    axs[0].grid(True, alpha=0.4, linestyle='--')
-    axs[0].set_title(f'{label} — Input and Output Spikes')
-
-    # Annotate
-    axs[0].text(0.02, 0.98, 'Leftward detector (0)\nRightward detector (1)',
-                transform=axs[0].transAxes, va='top', ha='left',
-                bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))
-
-    # 2. Output voltages (both)
-    t_ms = state_mon_left.t / ms
-    axs[1].plot(t_ms, state_mon_left.v[0] / mV, label='Left output (leftward pref.)', c='darkorange', lw=1.4)
-    axs[1].plot(t_ms, state_mon_right.v[0] / mV, label='Right output (rightward pref.)', c='teal', lw=1.4)
-
-    # Threshold
-    axs[1].axhline(y=v_thres / mV, color='r', ls='--', lw=1.0, label='threshold')
-
-    # Debug: vlines at output spike times
-    for spike_t in left_spike_ms:
-        axs[1].axvline(x=spike_t, color='darkorange', ls=':', lw=0.8)
-    for spike_t in right_spike_ms:
-        axs[1].axvline(x=spike_t, color='teal', ls=':', lw=0.8)
-
-    axs[1].set_ylabel('Membrane potential [mV]')
-    axs[1].set_xlabel('Time [ms]')
-    axs[1].legend(loc='upper right', fontsize=10)
-    axs[1].grid(True, alpha=0.3)
-
-    plt.tight_layout()
+    plot(num_inputs, v_thres, monitors, label)
     plt.show()
 
     # Stats
@@ -270,7 +287,7 @@ def main():
         "tau_syn": 40 * ms,
         "ex_weight": 500 * pA,
         "in_weight": -70 * pA,
-        "lateral_inhib_weight": -40 * pA,
+        "lateral_inhib_weight": -30 * pA,
         "inhib_delay": 10 * ms,  # for inhibitory groups (not lateral inhibition!)
 
         # STDP parameters — pair-based with soft bounds
