@@ -30,9 +30,16 @@ spikes, shifts, placed_images = image_to_spikes(img_tensor, direction=DIRECTION)
 # ── Figure with two subplots (stacked vertically) ─────────────
 fig, (ax_top, ax_bottom) = plt.subplots(
     2, 1,
-    figsize=(7.2, 9.6),     # taller to fit both nicely
-    dpi=140,
-    gridspec_kw={'hspace': 0.12}
+    figsize=(8.5, 11),     # taller to fit both nicely
+    dpi=250,
+)
+
+fig.subplots_adjust(
+    left=0.06,
+    right=0.97,
+    bottom=0.05,
+    top=0.93,
+    hspace=0.08
 )
 
 main_title = fig.suptitle(
@@ -108,6 +115,10 @@ for pos in range(29):
 ax_bottom.set_xticks([])
 ax_bottom.set_yticks([])
 ax_bottom.set_aspect('equal')
+
+ax_bottom.set_xlim(-0.5, 27.5)
+ax_bottom.set_ylim(-0.5, 27.5)
+
 ax_bottom.set_facecolor('#0a0e14')
 fig.patch.set_facecolor('#0a0e14')   # or keep white if preferred
 
@@ -143,5 +154,5 @@ anim = animation.FuncAnimation(
 )
 
 print(f"Saving → {GIF_NAME}  ({len(spikes)} frames @ {FPS} fps)")
-anim.save(GIF_NAME, writer='pillow', fps=FPS, dpi=140)
+anim.save(GIF_NAME, writer='pillow', fps=FPS, dpi=250)
 print("GIF saved successfully.")
