@@ -1,4 +1,4 @@
-from typing import Tuple, Optional, Dict, Any
+from typing import Tuple, Optional, Dict, Any, List
 
 import torch
 import torch.nn as nn
@@ -151,7 +151,7 @@ def train_model(
         optimizer: torch.optim.Optimizer,
         criterion,
         epochs: int
-) ->  Optional[Dict[str, Any]]:
+) -> Tuple[Dict[str, Any], List[Any], List[Any], List[Any], List[Any]]:
 
     train_losses = []
     train_accs = []
@@ -216,9 +216,9 @@ def train_model(
 
     print("\nFinished training.")
 
-    return best_model_state
+    return best_model_state, train_losses, train_accs, val_losses, val_accs
 
-def evaluate_model(model: nn.Module, test_loader: DataLoader):
+def evaluate_model(model: nn.Module, test_loader: DataLoader) -> Tuple[np.ndarray, np.ndarray, Any]:
     model.eval()
     all_preds, all_labels = [], []
 
@@ -234,6 +234,8 @@ def evaluate_model(model: nn.Module, test_loader: DataLoader):
 
     print(f"Test accuracy (best model): {test_acc:.1%}  "
           f"({(all_preds == all_labels).sum()}/{len(all_labels)} correct)")
+
+    return all_preds, all_labels, test_acc
 
 def main():
 
@@ -266,7 +268,7 @@ def main():
     model = DirectionSNN()
 
     # Training + Validation
-    best_model_state = train_model(
+    stats = train_model(
         model=model,
         train_loader=train_loader,
         val_loader=val_loader,
@@ -275,66 +277,69 @@ def main():
         epochs=EPOCHS
     )
 
+    # Unpack stats
+    best_model_state, train_losses, train_accs, val_losses, val_accs = stats
+
     # Load best model before final evaluation
     if best_model_state is not None:
         model.load_state_dict(best_model_state)
         print(f"Loaded best model for testing.")
 
     # Final test-set evaluation
-    evaluate_model(model=model, test_loader=test_loader)
+    all_preds, all_labels, test_acc = evaluate_model(model=model, test_loader=test_loader)
 
 
-    # # ── plots ─────────────────────────────────────────────────────────────────────
-    # fig, axes = plt.subplots(1, 3, figsize=(14, 4))
-    #
-    # # 1. Training curves (use full list length, not hardcoded EPOCHS)
-    # ax = axes[0]
-    # ep = range(1, len(train_losses) + 1)
-    # ax.plot(ep, train_losses, 'b-o', markersize=4, label='Loss')
-    # ax2 = ax.twinx()
-    # ax2.plot(ep, [a * 100 for a in train_accs], 'r--s', markersize=4, label='Acc (%)')
-    # ax.set_xlabel('Epoch')
-    # ax.set_ylabel('Cross-Entropy Loss', color='b')
-    # ax2.set_ylabel('Accuracy %', color='r')
-    # ax.set_title('Training Curves')
-    # lines1, _ = ax.get_legend_handles_labels()
-    # lines2, _ = ax2.get_legend_handles_labels()
-    # ax.legend(lines1 + lines2, ['Loss', 'Accuracy'], loc='upper right')
-    #
-    # # 2. Confusion matrix
-    # cm = confusion_matrix(all_labels, all_preds)
-    # ax = axes[1]
-    # im = ax.imshow(cm, cmap='Blues', vmin=0)
-    # for i in range(2):
-    #     for j in range(2):
-    #         ax.text(j, i, str(cm[i, j]), ha='center', va='center',
-    #                 fontsize=16, color='white' if cm[i, j] > cm.max() / 2 else 'black')
-    # ax.set_xticks([0, 1])
-    # ax.set_yticks([0, 1])
-    # ax.set_xticklabels(['Pred L→R', 'Pred R→L'])
-    # ax.set_yticklabels(['True L→R', 'True R→L'])
-    # ax.set_title('Confusion Matrix (test set)')
-    # plt.colorbar(im, ax=ax)
-    #
-    # # 3. Example predictions
-    # ax = axes[2]
-    # correct_idx = np.where(all_preds == all_labels)[0][:5]
-    # incorrect_idx = np.where(all_preds != all_labels)[0][:5]
-    # show_idx = np.concatenate([correct_idx, incorrect_idx])[:8]
-    #
-    # labels_str = {0: 'L→R', 1: 'R→L'}
-    # bar_colors = ['green' if all_preds[i] == all_labels[i] else 'red' for i in show_idx]
-    # bar_labels = [f"T:{labels_str[all_labels[i]]}\nP:{labels_str[all_preds[i]]}" for i in show_idx]
-    # ax.bar(range(len(show_idx)), [1] * len(show_idx), color=bar_colors, edgecolor='k')
-    # ax.set_xticks(range(len(show_idx)))
-    # ax.set_xticklabels(bar_labels, fontsize=8)
-    # ax.set_yticks([])
-    # ax.set_title('Sample Predictions (green=correct, red=wrong)')
-    #
-    # plt.suptitle(f'SNN Motion Direction Classifier on MNIST  —  Test Accuracy: {test_acc:.1%}',
-    #              fontsize=13, fontweight='bold', y=1.02)
-    # plt.tight_layout()
-    # plt.show()
+    # ── plots ─────────────────────────────────────────────────────────────────────
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+
+    # 1. Training curves (use full list length, not hardcoded EPOCHS)
+    ax = axes[0]
+    ep = range(1, len(train_losses) + 1)
+    ax.plot(ep, train_losses, 'b-o', markersize=4, label='Loss')
+    ax2 = ax.twinx()
+    ax2.plot(ep, [a * 100 for a in train_accs], 'r--s', markersize=4, label='Acc (%)')
+    ax.set_xlabel('Epoch')
+    ax.set_ylabel('Cross-Entropy Loss', color='b')
+    ax2.set_ylabel('Accuracy %', color='r')
+    ax.set_title('Training Curves')
+    lines1, _ = ax.get_legend_handles_labels()
+    lines2, _ = ax2.get_legend_handles_labels()
+    ax.legend(lines1 + lines2, ['Loss', 'Accuracy'], loc='upper right')
+
+    # 2. Confusion matrix
+    cm = confusion_matrix(all_labels, all_preds)
+    ax = axes[1]
+    im = ax.imshow(cm, cmap='Blues', vmin=0)
+    for i in range(2):
+        for j in range(2):
+            ax.text(j, i, str(cm[i, j]), ha='center', va='center',
+                    fontsize=16, color='white' if cm[i, j] > cm.max() / 2 else 'black')
+    ax.set_xticks([0, 1])
+    ax.set_yticks([0, 1])
+    ax.set_xticklabels(['Pred L→R', 'Pred R→L'])
+    ax.set_yticklabels(['True L→R', 'True R→L'])
+    ax.set_title('Confusion Matrix (test set)')
+    plt.colorbar(im, ax=ax)
+
+    # 3. Example predictions
+    ax = axes[2]
+    correct_idx = np.where(all_preds == all_labels)[0][:5]
+    incorrect_idx = np.where(all_preds != all_labels)[0][:5]
+    show_idx = np.concatenate([correct_idx, incorrect_idx])[:8]
+
+    labels_str = {0: 'L→R', 1: 'R→L'}
+    bar_colors = ['green' if all_preds[i] == all_labels[i] else 'red' for i in show_idx]
+    bar_labels = [f"T:{labels_str[all_labels[i]]}\nP:{labels_str[all_preds[i]]}" for i in show_idx]
+    ax.bar(range(len(show_idx)), [1] * len(show_idx), color=bar_colors, edgecolor='k')
+    ax.set_xticks(range(len(show_idx)))
+    ax.set_xticklabels(bar_labels, fontsize=8)
+    ax.set_yticks([])
+    ax.set_title('Sample Predictions (green=correct, red=wrong)')
+
+    plt.suptitle(f'SNN Motion Direction Classifier on MNIST  —  Test Accuracy: {test_acc:.1%}',
+                 fontsize=13, fontweight='bold', y=1.02)
+    plt.tight_layout()
+    plt.show()
 
 if __name__ == '__main__':
     main()
