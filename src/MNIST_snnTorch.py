@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 from torchvision import datasets, transforms
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader, TensorDataset, random_split
 
 import snntorch as snn
 from snntorch import surrogate
@@ -114,11 +114,6 @@ def build_dataset(num_images: int):
         X_data[i + n_per_class] = image_to_spikes(img, 'RL')
         y_data[i + n_per_class] = 1  # label: right→left
 
-    # shuffle
-    rng = np.random.default_rng(42)
-    perm = rng.permutation(num_images)
-    X_data, y_data = X_data[perm], y_data[perm]
-
     return X_data, y_data
 
 def main():
@@ -135,17 +130,37 @@ def main():
 
     X, y = build_dataset(TOTAL_DIGITS)
 
-    # train / test split (80 / 20)
-    split = int(0.8 * len(X))
-    X_train, X_test = X[:split], X[split:]
-    y_train, y_test = y[:split], y[split:]
+    # Convert to torch tensors once (float for X, long for labels)
+    X_tensor = torch.from_numpy(X).float()  # shape: (N, 28, 28)
+    y_tensor = torch.from_numpy(y).long()  # shape: (N,)
 
-    X_tr = torch.tensor(X_train)
-    y_tr = torch.tensor(y_train)
-    X_te = torch.tensor(X_test)
-    y_te = torch.tensor(y_test)
-    train_loader = DataLoader(TensorDataset(X_tr, y_tr), batch_size=BATCH_SIZE, shuffle=True)
-    test_loader = DataLoader(TensorDataset(X_te, y_te), batch_size=BATCH_SIZE, shuffle=False)
+    # Create full dataset
+    full_dataset = TensorDataset(X_tensor, y_tensor)
+
+    # Define split sizes
+    train_ratio = 0.7
+    val_ratio = 0.15
+    test_ratio = train_ratio - val_ratio
+
+    n_total = len(full_dataset)
+    n_train = int(train_ratio * n_total)
+    n_val = int(val_ratio * n_total)
+    n_test = n_total - n_train - n_val  # protect against rounding errors
+
+    # Optional: set seed just before splitting for reproducibility
+    generator = torch.Generator().manual_seed(SEED)
+
+    # Split
+    train_ds, val_ds, test_ds = random_split(
+        full_dataset,
+        [n_train, n_val, n_test],
+        generator=generator
+    )
+
+    # Now create loaders
+    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True)
+    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False)
+    test_loader = DataLoader(test_ds, batch_size=BATCH_SIZE, shuffle=False)
 
     model = DirectionSNN().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
@@ -177,74 +192,74 @@ def main():
             print(f"{epoch:>6}  {epoch_loss:>8.4f}  {epoch_acc:>9.1%}")
     print("Finished training.")
 
-    # ── test-set evaluation ───────────────────────────────────────────────────────
-    model.eval()
-    all_preds, all_labels = [], []
-
-    with torch.no_grad():
-        for xb, yb in test_loader:
-            out = model(xb)
-            all_preds.extend(out.argmax(1).numpy())
-            all_labels.extend(yb.numpy())
-
-    all_preds = np.array(all_preds)
-    all_labels = np.array(all_labels)
-    test_acc = (all_preds == all_labels).mean()
-    print(f"Test accuracy: {test_acc:.1%}  ({(all_preds == all_labels).sum()}/{len(all_labels)} correct)")
-
-    # ── confusion matrix ──────────────────────────────────────────────────────────
-    cm = confusion_matrix(all_labels, all_preds)
-
-    # ── plots ─────────────────────────────────────────────────────────────────────
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4))
-
-    # 1. Training curves (use full list length, not hardcoded EPOCHS)
-    ax = axes[0]
-    ep = range(1, len(train_losses) + 1)
-    ax.plot(ep, train_losses, 'b-o', markersize=4, label='Loss')
-    ax2 = ax.twinx()
-    ax2.plot(ep, [a * 100 for a in train_accs], 'r--s', markersize=4, label='Acc (%)')
-    ax.set_xlabel('Epoch')
-    ax.set_ylabel('Cross-Entropy Loss', color='b')
-    ax2.set_ylabel('Accuracy %', color='r')
-    ax.set_title('Training Curves')
-    lines1, _ = ax.get_legend_handles_labels()
-    lines2, _ = ax2.get_legend_handles_labels()
-    ax.legend(lines1 + lines2, ['Loss', 'Accuracy'], loc='upper right')
-
-    # 2. Confusion matrix
-    ax = axes[1]
-    im = ax.imshow(cm, cmap='Blues', vmin=0)
-    for i in range(2):
-        for j in range(2):
-            ax.text(j, i, str(cm[i, j]), ha='center', va='center',
-                    fontsize=16, color='white' if cm[i, j] > cm.max() / 2 else 'black')
-    ax.set_xticks([0, 1])
-    ax.set_yticks([0, 1])
-    ax.set_xticklabels(['Pred L→R', 'Pred R→L'])
-    ax.set_yticklabels(['True L→R', 'True R→L'])
-    ax.set_title('Confusion Matrix (test set)')
-    plt.colorbar(im, ax=ax)
-
-    # 3. Example predictions
-    ax = axes[2]
-    correct_idx = np.where(all_preds == all_labels)[0][:5]
-    incorrect_idx = np.where(all_preds != all_labels)[0][:5]
-    show_idx = np.concatenate([correct_idx, incorrect_idx])[:8]
-
-    labels_str = {0: 'L→R', 1: 'R→L'}
-    bar_colors = ['green' if all_preds[i] == all_labels[i] else 'red' for i in show_idx]
-    bar_labels = [f"T:{labels_str[all_labels[i]]}\nP:{labels_str[all_preds[i]]}" for i in show_idx]
-    ax.bar(range(len(show_idx)), [1] * len(show_idx), color=bar_colors, edgecolor='k')
-    ax.set_xticks(range(len(show_idx)))
-    ax.set_xticklabels(bar_labels, fontsize=8)
-    ax.set_yticks([])
-    ax.set_title('Sample Predictions (green=correct, red=wrong)')
-
-    plt.suptitle(f'SNN Motion Direction Classifier on MNIST  —  Test Accuracy: {test_acc:.1%}',
-                 fontsize=13, fontweight='bold', y=1.02)
-    plt.tight_layout()
-    plt.show()
+    # # ── test-set evaluation ───────────────────────────────────────────────────────
+    # model.eval()
+    # all_preds, all_labels = [], []
+    #
+    # with torch.no_grad():
+    #     for xb, yb in test_loader:
+    #         out = model(xb)
+    #         all_preds.extend(out.argmax(axis=1).numpy())
+    #         all_labels.extend(yb.numpy())
+    #
+    # all_preds = np.array(all_preds)
+    # all_labels = np.array(all_labels)
+    # test_acc = (all_preds == all_labels).mean()
+    # print(f"Test accuracy: {test_acc:.1%}  ({(all_preds == all_labels).sum()}/{len(all_labels)} correct)")
+    #
+    # # ── confusion matrix ──────────────────────────────────────────────────────────
+    # cm = confusion_matrix(all_labels, all_preds)
+    #
+    # # ── plots ─────────────────────────────────────────────────────────────────────
+    # fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+    #
+    # # 1. Training curves (use full list length, not hardcoded EPOCHS)
+    # ax = axes[0]
+    # ep = range(1, len(train_losses) + 1)
+    # ax.plot(ep, train_losses, 'b-o', markersize=4, label='Loss')
+    # ax2 = ax.twinx()
+    # ax2.plot(ep, [a * 100 for a in train_accs], 'r--s', markersize=4, label='Acc (%)')
+    # ax.set_xlabel('Epoch')
+    # ax.set_ylabel('Cross-Entropy Loss', color='b')
+    # ax2.set_ylabel('Accuracy %', color='r')
+    # ax.set_title('Training Curves')
+    # lines1, _ = ax.get_legend_handles_labels()
+    # lines2, _ = ax2.get_legend_handles_labels()
+    # ax.legend(lines1 + lines2, ['Loss', 'Accuracy'], loc='upper right')
+    #
+    # # 2. Confusion matrix
+    # ax = axes[1]
+    # im = ax.imshow(cm, cmap='Blues', vmin=0)
+    # for i in range(2):
+    #     for j in range(2):
+    #         ax.text(j, i, str(cm[i, j]), ha='center', va='center',
+    #                 fontsize=16, color='white' if cm[i, j] > cm.max() / 2 else 'black')
+    # ax.set_xticks([0, 1])
+    # ax.set_yticks([0, 1])
+    # ax.set_xticklabels(['Pred L→R', 'Pred R→L'])
+    # ax.set_yticklabels(['True L→R', 'True R→L'])
+    # ax.set_title('Confusion Matrix (test set)')
+    # plt.colorbar(im, ax=ax)
+    #
+    # # 3. Example predictions
+    # ax = axes[2]
+    # correct_idx = np.where(all_preds == all_labels)[0][:5]
+    # incorrect_idx = np.where(all_preds != all_labels)[0][:5]
+    # show_idx = np.concatenate([correct_idx, incorrect_idx])[:8]
+    #
+    # labels_str = {0: 'L→R', 1: 'R→L'}
+    # bar_colors = ['green' if all_preds[i] == all_labels[i] else 'red' for i in show_idx]
+    # bar_labels = [f"T:{labels_str[all_labels[i]]}\nP:{labels_str[all_preds[i]]}" for i in show_idx]
+    # ax.bar(range(len(show_idx)), [1] * len(show_idx), color=bar_colors, edgecolor='k')
+    # ax.set_xticks(range(len(show_idx)))
+    # ax.set_xticklabels(bar_labels, fontsize=8)
+    # ax.set_yticks([])
+    # ax.set_title('Sample Predictions (green=correct, red=wrong)')
+    #
+    # plt.suptitle(f'SNN Motion Direction Classifier on MNIST  —  Test Accuracy: {test_acc:.1%}',
+    #              fontsize=13, fontweight='bold', y=1.02)
+    # plt.tight_layout()
+    # plt.show()
 
 if __name__ == '__main__':
     main()
