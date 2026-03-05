@@ -306,7 +306,7 @@ def main():
     model = DirectionSNN()
 
     # Training + Validation
-    stats = train_model(
+    best_model_state, training_history = train_model(
         model=model,
         train_loader=train_loader,
         val_loader=val_loader,
@@ -314,9 +314,6 @@ def main():
         criterion=nn.CrossEntropyLoss(),
         epochs=EPOCHS
     )
-
-    # Unpack stats
-    best_model_state, history = stats
 
     # Load best model before final evaluation
     if best_model_state is not None:
@@ -327,7 +324,7 @@ def main():
     all_preds, all_labels, test_acc = evaluate_model(model=model, test_loader=test_loader)
 
     # Plotting
-    plot_training_history(history)
+    plot_training_history(training_history)
     plt.show()
 
 
