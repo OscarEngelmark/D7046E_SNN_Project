@@ -137,7 +137,7 @@ def build_dataset(num_images: int) -> TensorDataset:
 
     n_per_class = num_images // 2  # samples per direction (L→R and R→L)
 
-    X = np.zeros((num_images, 28, 28), dtype=np.float32)  # (N, T, R)
+    X = np.zeros((num_images, 55, 28, 28), dtype=np.float32)  # (N, T, 28, 28)
     y = np.zeros(num_images, dtype=np.int64)  # 0=LR, 1=RL
 
     img_pool = [mnist_data[i][0] for i in range(n_per_class)]  # first N images
@@ -149,7 +149,9 @@ def build_dataset(num_images: int) -> TensorDataset:
         X[i + n_per_class] = image_to_spikes(img, 'RL')
         y[i + n_per_class] = 1  # label: right→left
 
-    X_tensor = torch.from_numpy(X).float()  # shape: (N, 28, 28)
+    X_flat = X.reshape(num_images, -1)
+
+    X_tensor = torch.from_numpy(X_flat).float()  # shape: (N, 28, 28)
     y_tensor = torch.from_numpy(y).long()  # shape: (N,)
 
     return TensorDataset(X_tensor, y_tensor)
