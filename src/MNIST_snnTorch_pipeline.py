@@ -77,20 +77,51 @@ class DirectionSNN(nn.Module):
 
         return spike_counts
 
-def image_to_spikes(image_tensor: Tensor, direction: str = 'LR', threshold: float = 0.15):
+
+def image_to_spikes(image_tensor: Tensor, direction: str = 'LR', threshold: float = 0.15) -> np.ndarray:
     """
-    Scroll image column-by-column (28 timesteps) across 28 receptors.
-    Fire an ON-spike when pixel intensity increases by >= threshold.
-    Returns ndarray shape (28 timesteps, 28 receptors).
+    Slide a 28×28 image across a fixed 28×28 grid of LIF neurons.
+
+    Each grid position spikes when the intensity increases by >= threshold compared to the previous time step
+    (temporal ON-contrast).
+
+    Example for left-to-right (LR) motion:
+        Timesteps: 55  (28 + 28 - 1)
+        t=0:   rightmost column of image overlaps leftmost column of grid (start of entry)
+        t=27:  image and grid perfectly aligned
+        t=54:  leftmost column of image overlaps rightmost column of grid (end of exit)
+
+    Returns:
+        shape (55, 28, 28), float32 ∈ {0,1}
     """
-    img  = image_tensor.squeeze().numpy()
-    cols = range(28) if direction == 'LR' else range(27, -1, -1)
-    spikes = np.zeros((28, 28), dtype=np.float32)
-    prev   = np.zeros(28)
-    for t, c in enumerate(cols):
-        delta      = img[:, c] - prev
-        spikes[t]  = (delta >= threshold).astype(np.float32)
-        prev       = img[:, c]
+    img = image_tensor.squeeze().numpy()  # (28, 28)
+    H = W = 28
+    T = H + W - 1  # 55
+
+    spikes = np.zeros((T, H, W), dtype=np.float32)
+    prev = np.zeros((H, W), dtype=np.float32)
+
+    # For left-to-right motion we shift the *image* to the right (equivalent to sensor array moving left)
+    if direction == 'LR': # left-to-right
+        shifts = range(-27, 28)  # -27 ... +27
+    else:  # RL = right-to-left
+        shifts = range(27, -28, -1)  # 27 ... -27
+
+    for t, shift in enumerate(shifts):
+        current = np.zeros((H, W), dtype=np.float32)
+
+        # Place image columns onto the receptor grid
+        for c_img in range(W):  # column index in original image
+            c_grid = c_img + shift  # where this column lands on grid
+            if 0 <= c_grid < W:
+                current[:, c_grid] = img[:, c_img]
+
+        # Compute change (only ON events = increase)
+        delta = current - prev
+        spikes[t] = (delta >= threshold).astype(np.float32)
+
+        prev = current.copy()
+
     return spikes
 
 def build_dataset(num_images: int) -> TensorDataset:
