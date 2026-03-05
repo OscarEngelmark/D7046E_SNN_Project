@@ -7,6 +7,8 @@ from torch.utils.data import DataLoader, TensorDataset
 import snntorch as snn
 from snntorch import surrogate
 
+from sklearn.metrics import confusion_matrix
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -124,6 +126,12 @@ def main():
     # Hyperparameters
     TOTAL_DIGITS = 1000 # number of images to use
     SEED = 42
+    BATCH_SIZE = 32
+    LEARNING_RATE = 2e-3
+    EPOCHS = 20
+
+    torch.manual_seed(SEED)
+    device = torch.device('cpu')
 
     X, y = build_dataset(TOTAL_DIGITS)
 
@@ -132,47 +140,42 @@ def main():
     X_train, X_test = X[:split], X[split:]
     y_train, y_test = y[:split], y[split:]
 
-    torch.manual_seed(SEED)
-    device = torch.device('cpu')
-
     X_tr = torch.tensor(X_train)
     y_tr = torch.tensor(y_train)
     X_te = torch.tensor(X_test)
     y_te = torch.tensor(y_test)
-    train_loader = DataLoader(TensorDataset(X_tr, y_tr), batch_size=32, shuffle=True)
-    test_loader = DataLoader(TensorDataset(X_te, y_te), batch_size=32, shuffle=False)
+    train_loader = DataLoader(TensorDataset(X_tr, y_tr), batch_size=BATCH_SIZE, shuffle=True)
+    test_loader = DataLoader(TensorDataset(X_te, y_te), batch_size=BATCH_SIZE, shuffle=False)
 
     model = DirectionSNN().to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=2e-3)
+    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
     criterion = nn.CrossEntropyLoss()
 
-    # ── Training (20 epochs) ──────────────────────────────────────────────────────
-    EPOCHS = 20
+    # ── Training ──────────────────────────────────────────────────────
+    model.train()
     train_losses, train_accs = [], []
 
     print(f"{'Epoch':>6}  {'Loss':>8}  {'Train Acc':>10}")
     print("-" * 30)
     for epoch in range(1, EPOCHS + 1):
-        model.train()
-        total_loss = correct = total = 0
+        total_loss = 0.0
+        correct = total = 0
         for xb, yb in train_loader:
-            optimizer.zero_grad()
-            out = model(xb)
-            loss = criterion(out, yb)
-            loss.backward()
-            optimizer.step()
-            total_loss += loss.item() * xb.size(0)
-            correct += (out.argmax(1) == yb).sum().item()
-            total += xb.size(0)
+            optimizer.zero_grad() # Reset gradients
+            out = model(xb) # Forward pass
+            loss = criterion(out, yb) # Compute loss
+            loss.backward() # Backpropagation
+            optimizer.step() # Update parameters
+            total_loss += loss.item() * xb.size(0) # Accumulate loss
+            correct += (out.argmax(axis=1) == yb).sum().item() # Accumulate correct predictions
+            total += xb.size(0) # Accumulate total predictions
         epoch_loss = total_loss / total
         epoch_acc = correct / total
         train_losses.append(epoch_loss)
         train_accs.append(epoch_acc)
         if epoch % 4 == 0 or epoch == 1:
             print(f"{epoch:>6}  {epoch_loss:>8.4f}  {epoch_acc:>9.1%}")
-    print("Done.")
-
-    import matplotlib.pyplot as plt
+    print("Finished training.")
 
     # ── test-set evaluation ───────────────────────────────────────────────────────
     model.eval()
@@ -190,13 +193,7 @@ def main():
     print(f"Test accuracy: {test_acc:.1%}  ({(all_preds == all_labels).sum()}/{len(all_labels)} correct)")
 
     # ── confusion matrix ──────────────────────────────────────────────────────────
-    try:
-        from sklearn.metrics import confusion_matrix
-        cm = confusion_matrix(all_labels, all_preds)
-    except ImportError:
-        cm = np.zeros((2, 2), int)
-        for t, p in zip(all_labels, all_preds):
-            cm[t, p] += 1
+    cm = confusion_matrix(all_labels, all_preds)
 
     # ── plots ─────────────────────────────────────────────────────────────────────
     fig, axes = plt.subplots(1, 3, figsize=(14, 4))
