@@ -119,7 +119,7 @@ def build_dataset(num_images: int):
 def main():
 
     # Hyperparameters
-    TOTAL_DIGITS = 1000 # number of images to use
+    N = 1000 # number of images to use
     SEED = 42
     BATCH_SIZE = 32
     LEARNING_RATE = 2e-3
@@ -128,9 +128,8 @@ def main():
     torch.manual_seed(SEED)
     device = torch.device('cpu')
 
-    X, y = build_dataset(TOTAL_DIGITS)
+    X, y = build_dataset(N)
 
-    # Convert to torch tensors once (float for X, long for labels)
     X_tensor = torch.from_numpy(X).float()  # shape: (N, 28, 28)
     y_tensor = torch.from_numpy(y).long()  # shape: (N,)
 
