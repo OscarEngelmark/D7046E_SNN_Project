@@ -1,8 +1,10 @@
+from typing import Tuple, Optional, Dict, Any
+
 import torch
 import torch.nn as nn
 from torch import Tensor
 from torchvision import datasets, transforms
-from torch.utils.data import DataLoader, TensorDataset, random_split
+from torch.utils.data import DataLoader, TensorDataset, random_split, Subset
 
 import snntorch as snn
 from snntorch import surrogate
@@ -91,8 +93,8 @@ def image_to_spikes(image_tensor, direction='LR', threshold=0.15):
         prev       = img[:, c]
     return spikes
 
-def build_dataset(num_images: int):
-    # ── build balanced dataset ────────────────────────────────────────────────────
+def build_dataset(num_images: int) -> TensorDataset:
+
     mnist_data = datasets.MNIST(
         root='./mnist',
         train=True,
@@ -119,7 +121,12 @@ def build_dataset(num_images: int):
 
     return TensorDataset(X_tensor, y_tensor)
 
-def split_dataset(dataset: TensorDataset, train_size: float, val_size: float, seed: int):
+def split_dataset(
+        dataset: TensorDataset,
+        train_size: float,
+        val_size: float,
+        seed: int
+) -> Tuple[Subset, Subset, Subset]:
 
     # Split data
     n_total = len(dataset)
@@ -137,11 +144,87 @@ def split_dataset(dataset: TensorDataset, train_size: float, val_size: float, se
 
     return train_ds, val_ds, test_ds
 
+def train_model(
+        model: nn.Module,
+        train_loader: DataLoader,
+        val_loader: DataLoader,
+        optimizer: torch.optim.Optimizer,
+        criterion,
+        epochs: int
+) ->  Optional[Dict[str, Any]]:
+
+    device = torch.device('cpu')
+
+    train_losses = []
+    train_accs = []
+    val_losses = []
+    val_accs = []
+
+    best_val_loss = float('inf')
+    best_model_state = None  # we'll store state_dict here
+
+    print(f"{'Epoch':>6}  {'Train Loss':>12}  {'Train Acc':>10}  {'Val Loss':>10}  {'Val Acc':>9}")
+    print("-" * 60)
+
+    for epoch in range(1, epochs + 1):
+        # ── Training ───────────────────────────────────────────────────────
+        model.train()
+        total_loss = correct = total = 0.0
+
+        for xb, yb in train_loader:
+            xb, yb = xb.to(device), yb.to(device)
+            optimizer.zero_grad()
+            out = model(xb)
+            loss = criterion(out, yb)
+            loss.backward()
+            optimizer.step()
+
+            total_loss += loss.item() * xb.size(0)
+            correct += (out.argmax(dim=1) == yb).sum().item()
+            total += xb.size(0)
+
+        train_loss = total_loss / total
+        train_acc = correct / total
+        train_losses.append(train_loss)
+        train_accs.append(train_acc)
+
+        # ── Validation ─────────────────────────────────────────────────────
+        model.eval()
+        val_loss_total = val_correct = val_total = 0.0
+
+        with torch.no_grad():
+            for xb, yb in val_loader:
+                xb, yb = xb.to(device), yb.to(device)
+                out = model(xb)
+                loss = criterion(out, yb)
+
+                val_loss_total += loss.item() * xb.size(0)
+                val_correct += (out.argmax(dim=1) == yb).sum().item()
+                val_total += xb.size(0)
+
+        val_loss = val_loss_total / val_total
+        val_acc = val_correct / val_total
+        val_losses.append(val_loss)
+        val_accs.append(val_acc)
+
+        # ── Save best model (lowest val loss) ──────────────────────────────
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_model_state = model.state_dict().copy()  # deep copy via .copy()
+            print(f"  → New best val loss: {val_loss:.4f}  (epoch {epoch})")
+
+        # Print progress
+        print(f"{epoch:>6}  {train_loss:>12.4f}  {train_acc:>9.1%}  {val_loss:>10.4f}  {val_acc:>8.1%}")
+
+    print("\nFinished training.")
+
+    return best_model_state
+
 def main():
 
     # Hyperparameters
     N = 1000 # number of images to use
-    SEED = 42
+    SEED = 1
     BATCH_SIZE = 32
     LEARNING_RATE = 2e-3
     EPOCHS = 20
@@ -160,55 +243,47 @@ def main():
         seed=SEED
     )
 
-    # Now create loaders
+    # Create loaders
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
+    # Create model instance
     model = DirectionSNN().to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
-    criterion = nn.CrossEntropyLoss()
 
-    # ── Training ──────────────────────────────────────────────────────
-    model.train()
-    train_losses, train_accs = [], []
+    # Training + Validation
+    best_model_state = train_model(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        optimizer=torch.optim.Adam(model.parameters(), lr=LEARNING_RATE),
+        criterion=nn.CrossEntropyLoss(),
+        epochs=EPOCHS
+    )
 
-    print(f"{'Epoch':>6}  {'Loss':>8}  {'Train Acc':>10}")
-    print("-" * 30)
-    for epoch in range(1, EPOCHS + 1):
-        total_loss = 0.0
-        correct = total = 0
-        for xb, yb in train_loader:
-            optimizer.zero_grad() # Reset gradients
-            out = model(xb) # Forward pass
-            loss = criterion(out, yb) # Compute loss
-            loss.backward() # Backpropagation
-            optimizer.step() # Update parameters
-            total_loss += loss.item() * xb.size(0) # Accumulate loss
-            correct += (out.argmax(axis=1) == yb).sum().item() # Accumulate correct predictions
-            total += xb.size(0) # Accumulate total predictions
-        epoch_loss = total_loss / total
-        epoch_acc = correct / total
-        train_losses.append(epoch_loss)
-        train_accs.append(epoch_acc)
-        if epoch % 4 == 0 or epoch == 1:
-            print(f"{epoch:>6}  {epoch_loss:>8.4f}  {epoch_acc:>9.1%}")
-    print("Finished training.")
 
-    # ── test-set evaluation ───────────────────────────────────────────────────────
+    # Load best model before final evaluation
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
+        print(f"Loaded best model for testing.")
+
+    # Final test-set evaluation
     model.eval()
     all_preds, all_labels = [], []
 
     with torch.no_grad():
         for xb, yb in test_loader:
+            xb = xb.to(device)
             out = model(xb)
-            all_preds.extend(out.argmax(axis=1).numpy())
-            all_labels.extend(yb.numpy())
+            all_preds.extend(out.argmax(dim=1).cpu().numpy())
+            all_labels.extend(yb.cpu().numpy())
 
     all_preds = np.array(all_preds)
     all_labels = np.array(all_labels)
     test_acc = (all_preds == all_labels).mean()
-    print(f"Test accuracy: {test_acc:.1%}  ({(all_preds == all_labels).sum()}/{len(all_labels)} correct)")
+
+    print(f"Test accuracy (best model): {test_acc:.1%}  "
+          f"({(all_preds == all_labels).sum()}/{len(all_labels)} correct)")
 
     # # ── confusion matrix ──────────────────────────────────────────────────────────
     # cm = confusion_matrix(all_labels, all_preds)
