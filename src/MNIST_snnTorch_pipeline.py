@@ -92,12 +92,14 @@ def image_to_spikes(image_tensor: Tensor, direction: str = 'LR', threshold: floa
         t=54:  leftmost column of image overlaps rightmost column of grid (end of exit)
 
     Returns:
-        shape (55, 28, 28), float32 ∈ {0,1}
+        Returns spikes (55, 28, 28) and also returns placed_image frames (55, 28, 28)
+        for visualization.
     """
     img = image_tensor.squeeze().numpy()  # (28, 28)
     H = W = 28
     T = H + W - 1  # 55
 
+    placed_images = np.zeros((T, H, W), dtype=np.float32)  # what the grid "sees"
     spikes = np.zeros((T, H, W), dtype=np.float32)
     prev = np.zeros((H, W), dtype=np.float32)
 
@@ -117,12 +119,12 @@ def image_to_spikes(image_tensor: Tensor, direction: str = 'LR', threshold: floa
                 current[:, c_grid] = img[:, c_img]
 
         # Compute change (only ON events = increase)
+        placed_images[t] = current
         delta = current - prev
         spikes[t] = (delta >= threshold).astype(np.float32)
-
         prev = current.copy()
 
-    return spikes
+    return spikes, shifts, placed_images
 
 def build_dataset(num_images: int) -> TensorDataset:
 
