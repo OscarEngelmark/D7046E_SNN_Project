@@ -25,7 +25,7 @@ class DirectionSNN(nn.Module):
     Output shape: (batch_size, 2)                     ← total spike counts
                   (rate-coded "logits" for class 0=LR, 1=RL)
     """
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
         # Surrogate gradient for backpropagation through spikes
@@ -77,7 +77,7 @@ class DirectionSNN(nn.Module):
 
         return spike_counts
 
-def image_to_spikes(image_tensor, direction='LR', threshold=0.15):
+def image_to_spikes(image_tensor: Tensor, direction: str = 'LR', threshold: float = 0.15):
     """
     Scroll image column-by-column (28 timesteps) across 28 receptors.
     Fire an ON-spike when pixel intensity increases by >= threshold.
@@ -238,7 +238,7 @@ def evaluate_model(model: nn.Module, test_loader: DataLoader):
 def main():
 
     # Hyperparameters
-    N = 1000 # number of images to use
+    N = 2000 # number of images to use
     SEED = 1
     BATCH_SIZE = 32
     LEARNING_RATE = 2e-3
