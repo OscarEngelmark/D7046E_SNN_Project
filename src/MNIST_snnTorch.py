@@ -244,7 +244,7 @@ def main():
     LEARNING_RATE = 2e-3
     EPOCHS = 20
 
-    torch.manual_seed(SEED)
+    torch.manual_seed(SEED) # For reproducibility
 
     # Create dataset
     full_dataset = build_dataset(N)
@@ -284,9 +284,6 @@ def main():
     evaluate_model(model=model, test_loader=test_loader)
 
 
-    # # ── confusion matrix ──────────────────────────────────────────────────────────
-    # cm = confusion_matrix(all_labels, all_preds)
-    #
     # # ── plots ─────────────────────────────────────────────────────────────────────
     # fig, axes = plt.subplots(1, 3, figsize=(14, 4))
     #
@@ -305,6 +302,7 @@ def main():
     # ax.legend(lines1 + lines2, ['Loss', 'Accuracy'], loc='upper right')
     #
     # # 2. Confusion matrix
+    # cm = confusion_matrix(all_labels, all_preds)
     # ax = axes[1]
     # im = ax.imshow(cm, cmap='Blues', vmin=0)
     # for i in range(2):
