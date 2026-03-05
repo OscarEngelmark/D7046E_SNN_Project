@@ -54,7 +54,7 @@ class DirectionSNN(nn.Module):
 
             # ── Hidden layer ─────────────────────────────────────────────
             # 1. Linear layer (acts as synapse): weighted sum of incoming spikes
-            curr1: torch.Tensor = self.fc1(x_t)  # shape: (batch_size, 64)
+            curr1 = self.fc1(x_t)  # shape: (batch_size, 64)
             # This is the synaptic current I being injected into the 64 hidden neurons
 
             # 2. LIF neuron: integrate current + previous membrane potential
@@ -63,7 +63,7 @@ class DirectionSNN(nn.Module):
 
             # ── Output layer ─────────────────────────────────────────────
             # 3. Linear layer: hidden spikes → output currents
-            curr2: torch.Tensor = self.fc2(spk1)  # shape: (batch_size, 2)
+            curr2 = self.fc2(spk1)  # shape: (batch_size, 2)
 
             # 4. Output LIF neurons
             spk2, mem2 = self.lif2(curr2, mem2)  # spk2: (batch_size, 2), mem2: (batch_size, 2)
@@ -89,7 +89,7 @@ def image_to_spikes(image_tensor, direction='LR', threshold=0.15):
         prev       = img[:, c]
     return spikes
 
-def main():
+def build_dataset(num_images: int):
     # ── build balanced dataset ────────────────────────────────────────────────────
     mnist_data = datasets.MNIST(
         root='./mnist',
@@ -98,32 +98,41 @@ def main():
         transform=transforms.Compose([transforms.ToTensor()])
     )
 
-    N_PER_CLASS = 500  # samples per direction (L→R and R→L)
-    N_TOTAL = N_PER_CLASS * 2
+    n_per_class = num_images // 2  # samples per direction (L→R and R→L)
 
-    X_data = np.zeros((N_TOTAL, 28, 28), dtype=np.float32)  # (N, T, R)
-    y_data = np.zeros(N_TOTAL, dtype=np.int64)  # 0=LR, 1=RL
+    X_data = np.zeros((num_images, 28, 28), dtype=np.float32)  # (N, T, R)
+    y_data = np.zeros(num_images, dtype=np.int64)  # 0=LR, 1=RL
 
-    img_pool = [mnist_data[i][0] for i in range(N_PER_CLASS)]  # first N images
+    img_pool = [mnist_data[i][0] for i in range(n_per_class)]  # first N images
 
     for i, img in enumerate(img_pool):
         X_data[i] = image_to_spikes(img, 'LR')
         y_data[i] = 0  # label: left→right
 
-        X_data[i + N_PER_CLASS] = image_to_spikes(img, 'RL')
-        y_data[i + N_PER_CLASS] = 1  # label: right→left
+        X_data[i + n_per_class] = image_to_spikes(img, 'RL')
+        y_data[i + n_per_class] = 1  # label: right→left
 
     # shuffle
     rng = np.random.default_rng(42)
-    perm = rng.permutation(N_TOTAL)
+    perm = rng.permutation(num_images)
     X_data, y_data = X_data[perm], y_data[perm]
 
-    # train / test split (80 / 20)
-    split = int(0.8 * N_TOTAL)
-    X_train, X_test = X_data[:split], X_data[split:]
-    y_train, y_test = y_data[:split], y_data[split:]
+    return X_data, y_data
 
-    torch.manual_seed(42)
+def main():
+
+    # Hyperparameters
+    TOTAL_DIGITS = 1000 # number of images to use
+    SEED = 42
+
+    X, y = build_dataset(TOTAL_DIGITS)
+
+    # train / test split (80 / 20)
+    split = int(0.8 * len(X))
+    X_train, X_test = X[:split], X[split:]
+    y_train, y_test = y[:split], y[split:]
+
+    torch.manual_seed(SEED)
     device = torch.device('cpu')
 
     X_tr = torch.tensor(X_train)
