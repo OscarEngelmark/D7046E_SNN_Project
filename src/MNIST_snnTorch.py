@@ -209,7 +209,7 @@ def train_model(
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_model_state = model.state_dict().copy()  # deep copy via .copy()
-            message += f"  → New best val loss: {val_loss:.4f}  (epoch {epoch})"
+            message += f"  → New best val loss: {val_loss:.4f}"
 
         # Print progress
         print(message)
