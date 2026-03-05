@@ -32,7 +32,7 @@ class DirectionSNN(nn.Module):
         spike_grad = surrogate.fast_sigmoid(slope=25)
 
         # ── Layer 1: Input receptors → Hidden layer ─────────────────────
-        self.fc1 = nn.Linear(in_features=28, out_features=64)   # synaptic weights
+        self.fc1 = nn.Linear(in_features=784, out_features=64)   # synaptic weights
         self.lif1 = snn.Leaky(beta=0.9, spike_grad=spike_grad)
 
         # ── Layer 2: Hidden → Output classes ────────────────────────────
@@ -78,7 +78,11 @@ class DirectionSNN(nn.Module):
         return spike_counts
 
 
-def image_to_spikes(image_tensor: Tensor, direction: str = 'LR', threshold: float = 0.15) -> np.ndarray:
+def image_to_spikes(
+        image_tensor: Tensor,
+        direction: str = 'LR',
+        threshold: float = 0.15
+) -> Tuple[np.ndarray, range, np.ndarray]:
     """
     Slide a 28×28 image across a fixed 28×28 grid of LIF neurons.
 
@@ -143,16 +147,15 @@ def build_dataset(num_images: int) -> TensorDataset:
     img_pool = [mnist_data[i][0] for i in range(n_per_class)]  # first N images
 
     for i, img in enumerate(img_pool):
-        X[i] = image_to_spikes(img, 'LR')
+        X[i], _, _ = image_to_spikes(img, 'LR')
         y[i] = 0  # label: left→right
 
-        X[i + n_per_class] = image_to_spikes(img, 'RL')
+        X[i + n_per_class], _, _ = image_to_spikes(img, 'RL')
         y[i + n_per_class] = 1  # label: right→left
 
-    X_flat = X.reshape(num_images, -1)
-
-    X_tensor = torch.from_numpy(X_flat).float()  # shape: (N, 28, 28)
-    y_tensor = torch.from_numpy(y).long()  # shape: (N,)
+    X_reshaped = X.reshape(num_images, 55, 28 * 28) # (N, T, 784)
+    X_tensor = torch.from_numpy(X_reshaped).float()  # (N, 28, 28)
+    y_tensor = torch.from_numpy(y).long()  # (N,)
 
     return TensorDataset(X_tensor, y_tensor)
 
@@ -316,11 +319,11 @@ def main():
     """
 
     # Hyperparameters
-    N = 5000 # number of images to use
+    N = 10000 # number of images to use
     SEED = 1
     BATCH_SIZE = 256
-    LEARNING_RATE = 5e-4
-    EPOCHS = 50
+    LEARNING_RATE = 1e-4
+    EPOCHS = 10
 
     torch.manual_seed(SEED) # For reproducibility
 
@@ -364,7 +367,6 @@ def main():
     # Plotting
     plot_training_history(training_history)
     plt.show()
-
 
 if __name__ == '__main__':
     main()
