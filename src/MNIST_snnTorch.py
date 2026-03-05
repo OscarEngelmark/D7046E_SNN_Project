@@ -153,8 +153,6 @@ def train_model(
         epochs: int
 ) ->  Optional[Dict[str, Any]]:
 
-    device = torch.device('cpu')
-
     train_losses = []
     train_accs = []
     val_losses = []
@@ -172,7 +170,6 @@ def train_model(
         total_loss = correct = total = 0.0
 
         for xb, yb in train_loader:
-            xb, yb = xb.to(device), yb.to(device)
             optimizer.zero_grad()
             out = model(xb)
             loss = criterion(out, yb)
@@ -194,7 +191,6 @@ def train_model(
 
         with torch.no_grad():
             for xb, yb in val_loader:
-                xb, yb = xb.to(device), yb.to(device)
                 out = model(xb)
                 loss = criterion(out, yb)
 
@@ -207,18 +203,37 @@ def train_model(
         val_losses.append(val_loss)
         val_accs.append(val_acc)
 
+        message = f"{epoch:>6}  {train_loss:>12.4f}  {train_acc:>9.1%}  {val_loss:>10.4f}  {val_acc:>8.1%}"
+
         # ── Save best model (lowest val loss) ──────────────────────────────
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_model_state = model.state_dict().copy()  # deep copy via .copy()
-            print(f"  → New best val loss: {val_loss:.4f}  (epoch {epoch})")
+            message += f"  → New best val loss: {val_loss:.4f}  (epoch {epoch})"
 
         # Print progress
-        print(f"{epoch:>6}  {train_loss:>12.4f}  {train_acc:>9.1%}  {val_loss:>10.4f}  {val_acc:>8.1%}")
+        print(message)
 
     print("\nFinished training.")
 
     return best_model_state
+
+def evaluate_model(model: nn.Module, test_loader: DataLoader):
+    model.eval()
+    all_preds, all_labels = [], []
+
+    with torch.no_grad():
+        for xb, yb in test_loader:
+            out = model(xb)
+            all_preds.extend(out.argmax(dim=1).cpu().numpy())
+            all_labels.extend(yb.cpu().numpy())
+
+    all_preds = np.array(all_preds)
+    all_labels = np.array(all_labels)
+    test_acc = (all_preds == all_labels).mean()
+
+    print(f"Test accuracy (best model): {test_acc:.1%}  "
+          f"({(all_preds == all_labels).sum()}/{len(all_labels)} correct)")
 
 def main():
 
@@ -230,7 +245,6 @@ def main():
     EPOCHS = 20
 
     torch.manual_seed(SEED)
-    device = torch.device('cpu')
 
     # Create dataset
     full_dataset = build_dataset(N)
@@ -249,7 +263,7 @@ def main():
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
     # Create model instance
-    model = DirectionSNN().to(device)
+    model = DirectionSNN()
 
     # Training + Validation
     best_model_state = train_model(
@@ -261,29 +275,14 @@ def main():
         epochs=EPOCHS
     )
 
-
     # Load best model before final evaluation
     if best_model_state is not None:
         model.load_state_dict(best_model_state)
         print(f"Loaded best model for testing.")
 
     # Final test-set evaluation
-    model.eval()
-    all_preds, all_labels = [], []
+    evaluate_model(model=model, test_loader=test_loader)
 
-    with torch.no_grad():
-        for xb, yb in test_loader:
-            xb = xb.to(device)
-            out = model(xb)
-            all_preds.extend(out.argmax(dim=1).cpu().numpy())
-            all_labels.extend(yb.cpu().numpy())
-
-    all_preds = np.array(all_preds)
-    all_labels = np.array(all_labels)
-    test_acc = (all_preds == all_labels).mean()
-
-    print(f"Test accuracy (best model): {test_acc:.1%}  "
-          f"({(all_preds == all_labels).sum()}/{len(all_labels)} correct)")
 
     # # ── confusion matrix ──────────────────────────────────────────────────────────
     # cm = confusion_matrix(all_labels, all_preds)
