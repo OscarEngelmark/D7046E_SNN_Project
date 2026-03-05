@@ -102,19 +102,40 @@ def build_dataset(num_images: int):
 
     n_per_class = num_images // 2  # samples per direction (L→R and R→L)
 
-    X_data = np.zeros((num_images, 28, 28), dtype=np.float32)  # (N, T, R)
-    y_data = np.zeros(num_images, dtype=np.int64)  # 0=LR, 1=RL
+    X = np.zeros((num_images, 28, 28), dtype=np.float32)  # (N, T, R)
+    y = np.zeros(num_images, dtype=np.int64)  # 0=LR, 1=RL
 
     img_pool = [mnist_data[i][0] for i in range(n_per_class)]  # first N images
 
     for i, img in enumerate(img_pool):
-        X_data[i] = image_to_spikes(img, 'LR')
-        y_data[i] = 0  # label: left→right
+        X[i] = image_to_spikes(img, 'LR')
+        y[i] = 0  # label: left→right
 
-        X_data[i + n_per_class] = image_to_spikes(img, 'RL')
-        y_data[i + n_per_class] = 1  # label: right→left
+        X[i + n_per_class] = image_to_spikes(img, 'RL')
+        y[i + n_per_class] = 1  # label: right→left
 
-    return X_data, y_data
+    X_tensor = torch.from_numpy(X).float()  # shape: (N, 28, 28)
+    y_tensor = torch.from_numpy(y).long()  # shape: (N,)
+
+    return TensorDataset(X_tensor, y_tensor)
+
+def split_dataset(dataset: TensorDataset, train_size: float, val_size: float, seed: int):
+
+    # Split data
+    n_total = len(dataset)
+    n_train = int(train_size * n_total)
+    n_val = int(val_size * n_total)
+    n_test = n_total - n_train - n_val  # protect against rounding errors
+
+    generator = torch.Generator().manual_seed(seed)
+
+    train_ds, val_ds, test_ds = random_split(
+        dataset=dataset,
+        lengths=[n_train, n_val, n_test],
+        generator=generator
+    )
+
+    return train_ds, val_ds, test_ds
 
 def main():
 
@@ -128,38 +149,21 @@ def main():
     torch.manual_seed(SEED)
     device = torch.device('cpu')
 
-    X, y = build_dataset(N)
+    # Create dataset
+    full_dataset = build_dataset(N)
 
-    X_tensor = torch.from_numpy(X).float()  # shape: (N, 28, 28)
-    y_tensor = torch.from_numpy(y).long()  # shape: (N,)
-
-    # Create full dataset
-    full_dataset = TensorDataset(X_tensor, y_tensor)
-
-    # Define split sizes
-    train_ratio = 0.7
-    val_ratio = 0.15
-    test_ratio = train_ratio - val_ratio
-
-    n_total = len(full_dataset)
-    n_train = int(train_ratio * n_total)
-    n_val = int(val_ratio * n_total)
-    n_test = n_total - n_train - n_val  # protect against rounding errors
-
-    # Optional: set seed just before splitting for reproducibility
-    generator = torch.Generator().manual_seed(SEED)
-
-    # Split
-    train_ds, val_ds, test_ds = random_split(
-        full_dataset,
-        [n_train, n_val, n_test],
-        generator=generator
+    # Split data
+    train_dataset, val_dataset, test_dataset = split_dataset(
+        dataset=full_dataset,
+        train_size=0.7,
+        val_size=.15,
+        seed=SEED
     )
 
     # Now create loaders
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False)
-    test_loader = DataLoader(test_ds, batch_size=BATCH_SIZE, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
     model = DirectionSNN().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
@@ -191,21 +195,21 @@ def main():
             print(f"{epoch:>6}  {epoch_loss:>8.4f}  {epoch_acc:>9.1%}")
     print("Finished training.")
 
-    # # ── test-set evaluation ───────────────────────────────────────────────────────
-    # model.eval()
-    # all_preds, all_labels = [], []
-    #
-    # with torch.no_grad():
-    #     for xb, yb in test_loader:
-    #         out = model(xb)
-    #         all_preds.extend(out.argmax(axis=1).numpy())
-    #         all_labels.extend(yb.numpy())
-    #
-    # all_preds = np.array(all_preds)
-    # all_labels = np.array(all_labels)
-    # test_acc = (all_preds == all_labels).mean()
-    # print(f"Test accuracy: {test_acc:.1%}  ({(all_preds == all_labels).sum()}/{len(all_labels)} correct)")
-    #
+    # ── test-set evaluation ───────────────────────────────────────────────────────
+    model.eval()
+    all_preds, all_labels = [], []
+
+    with torch.no_grad():
+        for xb, yb in test_loader:
+            out = model(xb)
+            all_preds.extend(out.argmax(axis=1).numpy())
+            all_labels.extend(yb.numpy())
+
+    all_preds = np.array(all_preds)
+    all_labels = np.array(all_labels)
+    test_acc = (all_preds == all_labels).mean()
+    print(f"Test accuracy: {test_acc:.1%}  ({(all_preds == all_labels).sum()}/{len(all_labels)} correct)")
+
     # # ── confusion matrix ──────────────────────────────────────────────────────────
     # cm = confusion_matrix(all_labels, all_preds)
     #
