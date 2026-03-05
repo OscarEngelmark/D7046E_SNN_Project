@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch import Tensor
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -9,25 +10,68 @@ from snntorch import surrogate
 import numpy as np
 import matplotlib.pyplot as plt
 
-# ── Two-layer LIF SNN ─────────────────────────────────────────────────────────
+
 class DirectionSNN(nn.Module):
+    """
+    Two-layer Leaky Integrate-and-Fire (LIF) Spiking Neural Network.
+
+    Input shape : (batch_size, timesteps=28, receptors=28)
+                  dtype=float32, values ∈ {0.0, 1.0}  ← binary spikes
+
+    Output shape: (batch_size, 2)                     ← total spike counts
+                  (rate-coded "logits" for class 0=LR, 1=RL)
+    """
     def __init__(self):
         super().__init__()
+
+        # Surrogate gradient for backpropagation through spikes
         spike_grad = surrogate.fast_sigmoid(slope=25)
-        self.fc1 = nn.Linear(28, 64)
+
+        # ── Layer 1: Input receptors → Hidden layer ─────────────────────
+        self.fc1 = nn.Linear(in_features=28, out_features=64)   # synaptic weights
         self.lif1 = snn.Leaky(beta=0.9, spike_grad=spike_grad)
-        self.fc2 = nn.Linear(64, 2)
+
+        # ── Layer 2: Hidden → Output classes ────────────────────────────
+        self.fc2 = nn.Linear(in_features=64, out_features=2)
         self.lif2 = snn.Leaky(beta=0.9, spike_grad=spike_grad)
 
-    def forward(self, x):
-        mem1 = self.lif1.init_leaky()
-        mem2 = self.lif2.init_leaky()
-        counts = torch.zeros(x.shape[0], 2)
-        for t in range(x.shape[1]):  # 28 timesteps
-            spk1, mem1 = self.lif1(self.fc1(x[:, t, :]), mem1)
-            spk2, mem2 = self.lif2(self.fc2(spk1), mem2)
-            counts += spk2
-        return counts
+    def forward(self, x: Tensor) -> Tensor:
+
+        batch_size = x.shape[0]
+
+        # Initialize membrane potentials (internal neuron state)
+        # Shape: (batch_size, num_neurons)
+        mem1 = self.lif1.init_leaky()  # (batch_size, 64)
+        mem2 = self.lif2.init_leaky()  # (batch_size, 2)
+
+        # Accumulator for output spike counts (this is rate coding)
+        spike_counts = torch.zeros(batch_size, 2, device=x.device)  # (batch_size, 2)
+
+        # ── Temporal loop (28 time steps = scrolling the image) ─────────────
+        for t in range(x.shape[1]):  # t = 0...27
+            # Current input slice at this timestep
+            x_t = x[:, t, :]  # shape: (batch_size, 28), binary spikes from the 28 vertical receptors
+
+            # ── Hidden layer ─────────────────────────────────────────────
+            # 1. Linear layer (acts as synapse): weighted sum of incoming spikes
+            curr1: torch.Tensor = self.fc1(x_t)  # shape: (batch_size, 64)
+            # This is the synaptic current I being injected into the 64 hidden neurons
+
+            # 2. LIF neuron: integrate current + previous membrane potential
+            spk1, mem1 = self.lif1(curr1, mem1)  # spk1: (batch_size, 64), mem1: (batch_size, 64)
+            #  spk1 = 1.0 if this neuron fired this timestep, else 0.0
+
+            # ── Output layer ─────────────────────────────────────────────
+            # 3. Linear layer: hidden spikes → output currents
+            curr2: torch.Tensor = self.fc2(spk1)  # shape: (batch_size, 2)
+
+            # 4. Output LIF neurons
+            spk2, mem2 = self.lif2(curr2, mem2)  # spk2: (batch_size, 2), mem2: (batch_size, 2)
+
+            # Accumulate spikes over time (rate coding)
+            spike_counts += spk2  # final output = total spikes per class
+
+        return spike_counts
 
 def image_to_spikes(image_tensor, direction='LR', threshold=0.15):
     """
