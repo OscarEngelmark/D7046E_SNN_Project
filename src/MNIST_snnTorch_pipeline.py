@@ -151,7 +151,7 @@ def train_model(
         optimizer: torch.optim.Optimizer,
         criterion,
         epochs: int
-) -> Tuple[Dict[str, Any], List[Any], List[Any], List[Any], List[Any]]:
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
     train_losses = []
     train_accs = []
@@ -216,7 +216,14 @@ def train_model(
 
     print("\nFinished training.")
 
-    return best_model_state, train_losses, train_accs, val_losses, val_accs
+    training_history = {
+        "train_loss": np.array(train_losses),
+        "train_acc": np.array(train_accs),
+        "val_loss": np.array(val_losses),
+        "val_acc": np.array(val_accs),
+    }
+
+    return best_model_state, training_history
 
 def evaluate_model(model: nn.Module, test_loader: DataLoader) -> Tuple[np.ndarray, np.ndarray, Any]:
     model.eval()
@@ -237,14 +244,45 @@ def evaluate_model(model: nn.Module, test_loader: DataLoader) -> Tuple[np.ndarra
 
     return all_preds, all_labels, test_acc
 
+def plot_training_history(history: Dict[str, np.ndarray]):
+    """
+    Function for plotting the history (losses, accuracies) of the training and validation.
+    """
+
+    epochs_range = range(1, len(history['train_loss']) + 1)
+
+    plt.figure(figsize=(12, 5))
+
+    # Loss plot
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs_range, history['train_loss'], label='Training loss', marker='o')
+    plt.plot(epochs_range, history['val_loss'], label='Validation loss', marker='o')
+    plt.title('Training and Validation Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Cross Entropy Loss')
+    plt.legend()
+    plt.grid(True)
+
+    # Accuracy plot
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs_range, 100*history['train_acc'], label='Training accuracy', marker='o')
+    plt.plot(epochs_range, 100*history['val_acc'], label='Validation accuracy', marker='o')
+    plt.title('Training and Validation Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy (%)')
+    plt.legend()
+    plt.grid(True)
+
+    plt.tight_layout()
+
 def main():
 
     # Hyperparameters
-    N = 2000 # number of images to use
+    N = 5000 # number of images to use
     SEED = 1
-    BATCH_SIZE = 32
-    LEARNING_RATE = 2e-3
-    EPOCHS = 20
+    BATCH_SIZE = 256
+    LEARNING_RATE = 5e-4
+    EPOCHS = 50
 
     torch.manual_seed(SEED) # For reproducibility
 
@@ -278,7 +316,7 @@ def main():
     )
 
     # Unpack stats
-    best_model_state, train_losses, train_accs, val_losses, val_accs = stats
+    best_model_state, history = stats
 
     # Load best model before final evaluation
     if best_model_state is not None:
@@ -288,58 +326,10 @@ def main():
     # Final test-set evaluation
     all_preds, all_labels, test_acc = evaluate_model(model=model, test_loader=test_loader)
 
-
-    # ── plots ─────────────────────────────────────────────────────────────────────
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4))
-
-    # 1. Training curves (use full list length, not hardcoded EPOCHS)
-    ax = axes[0]
-    ep = range(1, len(train_losses) + 1)
-    ax.plot(ep, train_losses, 'b-o', markersize=4, label='Loss')
-    ax2 = ax.twinx()
-    ax2.plot(ep, [a * 100 for a in train_accs], 'r--s', markersize=4, label='Acc (%)')
-    ax.set_xlabel('Epoch')
-    ax.set_ylabel('Cross-Entropy Loss', color='b')
-    ax2.set_ylabel('Accuracy %', color='r')
-    ax.set_title('Training Curves')
-    lines1, _ = ax.get_legend_handles_labels()
-    lines2, _ = ax2.get_legend_handles_labels()
-    ax.legend(lines1 + lines2, ['Loss', 'Accuracy'], loc='upper right')
-
-    # 2. Confusion matrix
-    cm = confusion_matrix(all_labels, all_preds)
-    ax = axes[1]
-    im = ax.imshow(cm, cmap='Blues', vmin=0)
-    for i in range(2):
-        for j in range(2):
-            ax.text(j, i, str(cm[i, j]), ha='center', va='center',
-                    fontsize=16, color='white' if cm[i, j] > cm.max() / 2 else 'black')
-    ax.set_xticks([0, 1])
-    ax.set_yticks([0, 1])
-    ax.set_xticklabels(['Pred L→R', 'Pred R→L'])
-    ax.set_yticklabels(['True L→R', 'True R→L'])
-    ax.set_title('Confusion Matrix (test set)')
-    plt.colorbar(im, ax=ax)
-
-    # 3. Example predictions
-    ax = axes[2]
-    correct_idx = np.where(all_preds == all_labels)[0][:5]
-    incorrect_idx = np.where(all_preds != all_labels)[0][:5]
-    show_idx = np.concatenate([correct_idx, incorrect_idx])[:8]
-
-    labels_str = {0: 'L→R', 1: 'R→L'}
-    bar_colors = ['green' if all_preds[i] == all_labels[i] else 'red' for i in show_idx]
-    bar_labels = [f"T:{labels_str[all_labels[i]]}\nP:{labels_str[all_preds[i]]}" for i in show_idx]
-    ax.bar(range(len(show_idx)), [1] * len(show_idx), color=bar_colors, edgecolor='k')
-    ax.set_xticks(range(len(show_idx)))
-    ax.set_xticklabels(bar_labels, fontsize=8)
-    ax.set_yticks([])
-    ax.set_title('Sample Predictions (green=correct, red=wrong)')
-
-    plt.suptitle(f'SNN Motion Direction Classifier on MNIST  —  Test Accuracy: {test_acc:.1%}',
-                 fontsize=13, fontweight='bold', y=1.02)
-    plt.tight_layout()
+    # Plotting
+    plot_training_history(history)
     plt.show()
+
 
 if __name__ == '__main__':
     main()
