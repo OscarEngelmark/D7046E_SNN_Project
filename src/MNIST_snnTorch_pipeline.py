@@ -276,6 +276,9 @@ def plot_training_history(history: Dict[str, np.ndarray]):
     plt.tight_layout()
 
 def main():
+    """
+    Main function for running the pipeline.
+    """
 
     # Hyperparameters
     N = 5000 # number of images to use
