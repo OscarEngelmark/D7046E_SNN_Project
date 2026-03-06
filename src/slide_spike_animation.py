@@ -4,7 +4,7 @@ import matplotlib.animation as animation
 from torchvision import datasets, transforms
 from paths import PLOTS_DIR
 
-from MNIST_snnTorch_pipeline import image_to_spikes
+from MNIST_snnTorch_pipeline import image_to_spikes_2D
 
 # ========================== CONFIG ==========================
 DIRECTION     = 'LR'          # 'LR' or 'RL'
@@ -25,7 +25,7 @@ img_tensor, label = mnist[DIGIT_IDX]
 print(f"Digit: {label} (idx {DIGIT_IDX})  Direction: {DIRECTION}")
 
 # ── Generate data ─────────────────────────────────────────────
-spikes, shifts, placed_images = image_to_spikes(img_tensor, direction=DIRECTION)
+spikes, shifts, placed_images = image_to_spikes_2D(img_tensor, direction=DIRECTION)
 
 # ── Figure with two subplots (stacked vertically) ─────────────
 fig, (ax_top, ax_bottom) = plt.subplots(

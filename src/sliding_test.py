@@ -1,4 +1,4 @@
-from MNIST_snnTorch_pipeline import image_to_spikes
+from MNIST_snnTorch_pipeline import image_to_spikes_2D
 import numpy as np
 import matplotlib.pyplot as plt
 from torchvision import datasets, transforms
@@ -22,7 +22,7 @@ print(f"Using MNIST digit: {label}  (index {idx})")
 #  Generate sliding data (we'll use placed_images for plotting)
 # ────────────────────────────────────────────────────────────────
 
-spikes, shifts, placed_images = image_to_spikes(img_tensor, direction='LR')
+spikes, shifts, placed_images = image_to_spikes_2D(img_tensor, direction='LR')
 
 # ────────────────────────────────────────────────────────────────
 #  Plot selected timesteps

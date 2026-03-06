@@ -78,7 +78,7 @@ class DirectionSNN(nn.Module):
         return spike_counts
 
 
-def image_to_spikes(
+def image_to_spikes_2D(
         image_tensor: Tensor,
         direction: str = 'LR',
         threshold: float = 0.15
@@ -147,10 +147,10 @@ def build_dataset(num_images: int) -> TensorDataset:
     img_pool = [mnist_data[i][0] for i in range(n_per_class)]  # first N images
 
     for i, img in enumerate(img_pool):
-        X[i], _, _ = image_to_spikes(img, 'LR')
+        X[i], _, _ = image_to_spikes_2D(img, 'LR')
         y[i] = 0  # label: left→right
 
-        X[i + n_per_class], _, _ = image_to_spikes(img, 'RL')
+        X[i + n_per_class], _, _ = image_to_spikes_2D(img, 'RL')
         y[i + n_per_class] = 1  # label: right→left
 
     X_reshaped = X.reshape(num_images, 55, 28 * 28) # (N, T, 784)
