@@ -10,6 +10,7 @@ import snntorch as snn
 from snntorch import surrogate
 
 from sklearn.metrics import confusion_matrix
+import seaborn as sns
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -313,16 +314,44 @@ def plot_training_history(history: Dict[str, np.ndarray]):
 
     plt.tight_layout()
 
+def plot_confusion_matrix(
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        class_names: Optional[List[str]] = None,
+        title: str = "Confusion Matrix (Test Set)"):
+    """
+    Plot a confusion matrix using seaborn.
+
+    Args:
+        y_true: Ground truth labels (0 = L→R, 1 = R→L)
+        y_pred: Predicted labels
+        class_names: Labels for the classes
+        title: Plot title
+    """
+    if class_names is None:
+        class_names = ["L → R", "R → L"]
+    cm = confusion_matrix(y_true, y_pred)
+
+    plt.figure(figsize=(6, 5))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                xticklabels=class_names, yticklabels=class_names,
+                cbar=False, annot_kws={"size": 16})
+
+    plt.title(title, fontsize=14, fontweight='bold')
+    plt.ylabel('True label', fontsize=12)
+    plt.xlabel('Predicted label', fontsize=12)
+    plt.tight_layout()
+
 def main():
     """
     Main function for running the pipeline.
     """
 
     # Hyperparameters
-    N = 10000 # number of images to use
+    N = 1000 # number of images to use
     SEED = 1
     BATCH_SIZE = 256
-    LEARNING_RATE = 1e-4
+    LEARNING_RATE = 1e-3
     EPOCHS = 10
 
     torch.manual_seed(SEED) # For reproducibility
@@ -366,6 +395,14 @@ def main():
 
     # Plotting
     plot_training_history(training_history)
+
+    plot_confusion_matrix(
+        y_true=all_labels,
+        y_pred=all_preds,
+        class_names=["L → R", "R → L"],
+        title=f"Confusion Matrix (Test Set)"
+    )
+
     plt.show()
 
 if __name__ == '__main__':
