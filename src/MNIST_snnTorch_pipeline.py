@@ -341,7 +341,7 @@ def plot_confusion_matrix(
                 xticklabels=class_names, yticklabels=class_names,
                 cbar=False, annot_kws={"size": 16})
 
-
+    plt.tick_params(axis='both', labelsize=15)
 
     plt.title(title, fontsize=20, fontweight='bold')
     plt.ylabel('True label', fontsize=15)
