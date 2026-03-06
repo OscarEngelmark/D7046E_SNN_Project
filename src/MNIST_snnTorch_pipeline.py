@@ -1,4 +1,5 @@
 from typing import Tuple, Optional, Dict, Any, List
+from paths import PLOTS_DIR
 
 import torch
 import torch.nn as nn
@@ -290,29 +291,32 @@ def plot_training_history(history: Dict[str, np.ndarray]):
 
     epochs_range = range(1, len(history['train_loss']) + 1)
 
-    plt.figure(figsize=(12, 5))
+    plt.figure(figsize=(16, 6))
 
     # Loss plot
     plt.subplot(1, 2, 1)
     plt.plot(epochs_range, history['train_loss'], label='Training loss', marker='o')
     plt.plot(epochs_range, history['val_loss'], label='Validation loss', marker='o')
-    plt.title('Training and Validation Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Cross Entropy Loss')
-    plt.legend()
+    plt.title('Training and Validation Loss', fontsize=20)
+    plt.xlabel('Epoch', fontsize=15)
+    plt.ylabel('Cross Entropy Loss', fontsize=15)
+    plt.legend(fontsize=14)
     plt.grid(True)
 
     # Accuracy plot
     plt.subplot(1, 2, 2)
     plt.plot(epochs_range, 100*history['train_acc'], label='Training accuracy', marker='o')
     plt.plot(epochs_range, 100*history['val_acc'], label='Validation accuracy', marker='o')
-    plt.title('Training and Validation Accuracy')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy (%)')
-    plt.legend()
+    plt.title('Training and Validation Accuracy', fontsize=20)
+    plt.xlabel('Epoch', fontsize=15)
+    plt.ylabel('Accuracy (%)', fontsize=15)
+    plt.legend(fontsize=14)
     plt.grid(True)
 
     plt.tight_layout()
+
+    plt.savefig(PLOTS_DIR / 'training_history.png', dpi=250, bbox_inches='tight')
+    plt.show()
 
 def plot_confusion_matrix(
         y_true: np.ndarray,
@@ -332,15 +336,19 @@ def plot_confusion_matrix(
         class_names = ["L → R", "R → L"]
     cm = confusion_matrix(y_true, y_pred)
 
-    plt.figure(figsize=(6, 5))
+    plt.figure(figsize=(8, 7))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
                 xticklabels=class_names, yticklabels=class_names,
                 cbar=False, annot_kws={"size": 16})
 
-    plt.title(title, fontsize=14, fontweight='bold')
-    plt.ylabel('True label', fontsize=12)
-    plt.xlabel('Predicted label', fontsize=12)
+
+
+    plt.title(title, fontsize=20, fontweight='bold')
+    plt.ylabel('True label', fontsize=15)
+    plt.xlabel('Predicted label', fontsize=15)
     plt.tight_layout()
+
+    plt.savefig(PLOTS_DIR / 'confusion matrix.png', dpi=250, bbox_inches='tight')
 
 def main():
     """
