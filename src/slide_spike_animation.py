@@ -11,6 +11,10 @@ DIRECTION     = 'LR'          # 'LR' or 'RL'
 FPS           = 8
 DIGIT_IDX     = 5
 GIF_NAME      = f'{PLOTS_DIR}/mnist_sliding_and_spikes_{DIRECTION}.gif'
+AX_TITLE_FS   = 20
+FIG_COLOR     = 'white'
+AX_COLOR      = '#0a0e14'
+DPI           = 180
 # ===========================================================
 
 # ── Load digit ────────────────────────────────────────────────
@@ -28,89 +32,44 @@ print(f"Digit: {label} (idx {DIGIT_IDX})  Direction: {DIRECTION}")
 spikes, shifts, placed_images = image_to_spikes_2D(img_tensor, direction=DIRECTION)
 
 # ── Figure with two subplots (stacked vertically) ─────────────
-fig, (ax_top, ax_bottom) = plt.subplots(
-    2, 1,
-    figsize=(8.5, 11),     # taller to fit both nicely
-    dpi=250,
-)
+fig, (ax_top, ax_bottom) = plt.subplots(2, 1, figsize=(8.5, 11), dpi=DPI)
 
-fig.subplots_adjust(
-    left=0.06,
-    right=0.97,
-    bottom=0.05,
-    top=0.93,
-    hspace=0.08
-)
+fig.subplots_adjust(left=0.06, right=0.97, bottom=0.05, top=0.93, hspace=0.15)
+
+fig.patch.set_facecolor(FIG_COLOR)
 
 main_title = fig.suptitle(
     "",
-    fontsize=15,
-    y=0.98,
-    color="white"
+    fontsize=18,           # larger → more visible
+    fontweight='bold',
+    color="black",
+    y=0.96                 # move slightly down to avoid being cut off
 )
-
-for ax in (ax_top, ax_bottom):
-    for spine in ax.spines.values():
-        spine.set_color('#6e7681')
-        spine.set_linewidth(1.2)
 
 # ── Shared settings ───────────────────────────────────────────
 yy, xx = np.meshgrid(np.arange(28), np.arange(28))
 
 # ── Top: Sliding digit ────────────────────────────────────────
-ax_top.set_title("Input image sliding over receptor grid", fontsize=12, pad=6, color="white")
+ax_top.set_title("Input image sliding over receptor grid", fontsize=AX_TITLE_FS, pad=8, color="black")
 
-img_plot = ax_top.imshow(
-    placed_images[0],
-    cmap='gray',
-    vmin=0, vmax=1,
-    alpha=0.9,
-    origin='upper'
-)
+img_plot = ax_top.imshow(placed_images[0], cmap='gray', vmin=0, vmax=1, alpha=0.9, origin='upper')
 
-ax_top.scatter(
-    xx.ravel(), yy.ravel(),
-    s=12,
-    c='cyan',
-    marker='o',
-    alpha=0.5,
-    zorder=10
-)
-
-for pos in range(29):
-    ax_top.axhline(pos - 0.5, color='#8b949e', lw=0.45, alpha=0.35)
-    ax_top.axvline(pos - 0.5, color='#8b949e', lw=0.45, alpha=0.35)
+ax_top.scatter(xx.ravel(), yy.ravel(), s=12, c='cyan', marker='o', alpha=0.5, zorder=10)
 
 ax_top.set_xticks([])
 ax_top.set_yticks([])
 ax_top.set_aspect('equal')
 
+ax_top.set_facecolor(AX_COLOR)
+
 # ── Bottom: Spiking activity ──────────────────────────────────
-ax_bottom.set_title("Spiking receptor neurons (ON events)", fontsize=12, pad=6, color="white")
+ax_bottom.set_title("Spiking receptor neurons (ON events)", fontsize=AX_TITLE_FS, pad=8, color="black")
 
 # Resting neurons
-ax_bottom.scatter(
-    xx.ravel(), yy.ravel(),
-    s=16,
-    c='darkcyan',
-    marker='o',
-    alpha=0.45,
-    zorder=5
-)
+ax_bottom.scatter(xx.ravel(), yy.ravel(), s=16, c='darkcyan', marker='o', alpha=0.45, zorder=5)
 
 # Active spikes layer
-active_scatter = ax_bottom.scatter(
-    [], [],
-    s=75,
-    c='lime',
-    marker='o',
-    alpha=0.95,
-    zorder=10
-)
-
-for pos in range(29):
-    ax_bottom.axhline(pos - 0.5, color='#8b949e', lw=0.45, alpha=0.35)
-    ax_bottom.axvline(pos - 0.5, color='#8b949e', lw=0.45, alpha=0.35)
+active_scatter = ax_bottom.scatter([], [], s=75, c='lime', marker='o', alpha=0.95, zorder=10)
 
 ax_bottom.set_xticks([])
 ax_bottom.set_yticks([])
@@ -119,8 +78,7 @@ ax_bottom.set_aspect('equal')
 ax_bottom.set_xlim(-0.5, 27.5)
 ax_bottom.set_ylim(-0.5, 27.5)
 
-ax_bottom.set_facecolor('#0a0e14')
-fig.patch.set_facecolor('#0a0e14')   # or keep white if preferred
+ax_bottom.set_facecolor(AX_COLOR)
 
 # ── Animation function ────────────────────────────────────────
 def animate(frame: int):
@@ -140,7 +98,7 @@ def animate(frame: int):
     active_scatter.set_offsets(offsets)
 
     # Update title
-    main_title.set_text(f"t = {frame}  |  shift = {shifts[frame]}")
+    main_title.set_text(f"timestep = {frame}")
 
     return img_plot, active_scatter, main_title
 
@@ -154,5 +112,5 @@ anim = animation.FuncAnimation(
 )
 
 print(f"Saving → {GIF_NAME}  ({len(spikes)} frames @ {FPS} fps)")
-anim.save(GIF_NAME, writer='pillow', fps=FPS, dpi=250)
+anim.save(GIF_NAME, writer='pillow', fps=FPS, dpi=DPI)
 print("GIF saved successfully.")
