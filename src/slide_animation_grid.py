@@ -9,7 +9,7 @@ from MNIST_snnTorch_pipeline import image_to_spikes_2D
 # ========================== CONFIG ==========================
 DIRECTION     = 'LR'          # 'LR' or 'RL'
 FPS           = 8
-DIGIT_IDX     = 5
+DIGIT_IDX     = 7
 GIF_NAME      = f'{PLOTS_DIR}/mnist_sliding_and_spikes_{DIRECTION}.gif'
 AX_TITLE_FS   = 20
 FIG_COLOR     = 'white'
